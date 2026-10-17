@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "verify:rules": "tsx scripts/verify-rules.ts"
+    "verify:rules": "tsx scripts/verify-rules.ts",
+    "db:seed:generate": "tsx scripts/generate-seed-sql.ts",
+    "db:test": "bash supabase/tests/run-local.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

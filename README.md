@@ -34,6 +34,8 @@ The login page also has a **Fill demo credentials** button. This is a simulated 
 | `npm run typecheck`    | Strict TypeScript check                                    |
 | `npm run lint`         | ESLint (Next.js core-web-vitals + TypeScript rules)        |
 | `npm run verify:rules` | Runs the business-rule integrity checks against the mock service in Node |
+| `npm run db:test`      | Applies the Supabase migrations + seed to a throwaway local Postgres 17 and runs the database tests |
+| `npm run db:seed:generate` | Regenerates `supabase/seed.sql` from the TypeScript demo seed |
 
 ## Resetting demo data
 
@@ -182,6 +184,10 @@ Every mutation is a single `commit()`. It applies the change to a copy of the da
 - **Sales window.** "Sales · 30 days" uses a rolling 30-day window, not calendar months.
 - **Scheme bonuses are not retroactive.** They are evaluated when a qualifying scan or invoice is approved. Activating a scheme does not award bonuses retroactively.
 - **Next.js Instant Navigation validation is limited to explicit opt-ins** (`next.config.ts`). Admin pages render client-side from browser storage behind a skeleton.
+
+## Backend (Supabase)
+
+The pilot backend lives in [`supabase/`](supabase/README.md). It contains the Postgres schema, business-rule functions, row-level security, a seed generated from the demo data, and a database test suite (`npm run db:test`). The admin UI is not yet wired to it: it still runs on the localStorage mock.
 
 ## Moving to production
 
