@@ -1,11 +1,9 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getStorageWarning, useDatabaseSnapshot } from "@/lib/mock-api/store";
-import { useSession } from "@/lib/storage/session";
+import { useSession } from "@/lib/api/auth";
 import { AppSidebar } from "./app-sidebar";
 import { Topbar } from "./topbar";
 
@@ -26,19 +24,16 @@ function ShellSkeleton() {
   );
 }
 
-/** Client shell: demo session guard, database gate, sidebar and top bar. */
+/** Client shell: session guard (redirects to /login when signed out), sidebar and top bar. */
 export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const session = useSession();
-  const db = useDatabaseSnapshot();
 
   useEffect(() => {
-    if (session === null) router.replace("/login");
-  }, [session, router]);
+    if (session.status === "anonymous") router.replace("/login");
+  }, [session.status, router]);
 
-  if (!session || !db) return <ShellSkeleton />;
-
-  const warning = getStorageWarning();
+  if (session.status !== "authenticated") return <ShellSkeleton />;
 
   return (
     <div className="min-h-screen">
@@ -51,12 +46,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <div className="lg:pl-64">
         <Topbar />
         <main id="main" className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {warning ? (
-            <div role="alert" className="mb-5 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-warning">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              <span>{warning}</span>
-            </div>
-          ) : null}
           {children}
         </main>
       </div>

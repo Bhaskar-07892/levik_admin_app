@@ -1,7 +1,7 @@
-import type { StatusEvent } from "@/types";
+import type { StatusEventDto } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/utils/format";
 
-export function Timeline({ events }: { events: StatusEvent[] }) {
+export function Timeline({ events }: { events: StatusEventDto[] }) {
   return (
     <ol className="relative space-y-4 border-l border-border pl-5">
       {events.map((event, index) => (

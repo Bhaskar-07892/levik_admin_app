@@ -1,7 +1,7 @@
 import { CircleAlert, CircleCheck, CircleX } from "lucide-react";
-import type { Check } from "@/lib/mock-api/rules";
+import type { CheckDto } from "@/lib/api/types";
 
-export function ChecksList({ checks }: { checks: Check[] }) {
+export function ChecksList({ checks }: { checks: CheckDto[] }) {
   return (
     <ul className="space-y-3">
       {checks.map((check) => {

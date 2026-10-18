@@ -37,8 +37,8 @@ export function ReasonDialog({
   placeholder?: string;
   confirmLabel: string;
   destructive?: boolean;
-  /** Return true to close the dialog. */
-  onSubmit: (reason: string) => boolean;
+  /** Return (or resolve to) true to close the dialog. */
+  onSubmit: (reason: string) => boolean | Promise<boolean>;
   children?: ReactNode;
 }) {
   const form = useForm<ReasonValues>({ resolver: zodResolver(reasonSchema), defaultValues: { reason: "" } });
@@ -47,12 +47,13 @@ export function ReasonDialog({
     if (open) form.reset({ reason: "" });
   }, [open, form]);
 
-  const submit = form.handleSubmit((values) => {
-    if (onSubmit(values.reason)) onOpenChange(false);
+  const submit = form.handleSubmit(async (values) => {
+    if (await onSubmit(values.reason)) onOpenChange(false);
   });
+  const pending = form.formState.isSubmitting;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
@@ -77,7 +78,7 @@ export function ReasonDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant={destructive ? "destructive" : "default"}>
+            <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>
               {confirmLabel}
             </Button>
           </DialogFooter>

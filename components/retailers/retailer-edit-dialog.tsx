@@ -7,12 +7,12 @@ import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { updateRetailer } from "@/lib/mock-api/services";
+import { api, call } from "@/lib/api/client";
+import type { RetailerDetail } from "@/lib/api/types";
 import { runAction } from "@/lib/utils/run-action";
 import { retailerEditSchema, type RetailerEditInput } from "@/lib/validations";
-import type { Retailer } from "@/types";
 
-const toValues = (r: Retailer): RetailerEditInput => ({
+const toValues = (r: RetailerDetail): RetailerEditInput => ({
   shopName: r.shopName,
   ownerName: r.ownerName,
   mobile: r.mobile,
@@ -25,7 +25,7 @@ const toValues = (r: Retailer): RetailerEditInput => ({
   monthlyTarget: r.monthlyTarget,
 });
 
-export function RetailerEditDialog({ retailer, open, onOpenChange }: { retailer: Retailer; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function RetailerEditDialog({ retailer, open, onOpenChange }: { retailer: RetailerDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const form = useForm<RetailerEditInput>({ resolver: zodResolver(retailerEditSchema), defaultValues: toValues(retailer) });
   const { errors } = form.formState;
 
@@ -33,9 +33,18 @@ export function RetailerEditDialog({ retailer, open, onOpenChange }: { retailer:
     if (open) form.reset(toValues(retailer));
   }, [open, retailer, form]);
 
-  const submit = form.handleSubmit((values) => {
-    const ok = runAction(() => updateRetailer(retailer.id, values), "Shop information updated");
-    if (ok.ok) onOpenChange(false);
+  const submit = form.handleSubmit(async (values) => {
+    const result = await runAction(
+      () =>
+        call(
+          api.PATCH("/api/v1/admin/retailers/{id}", {
+            params: { path: { id: retailer.id } },
+            body: { ...values, email: values.email || null, gstin: values.gstin || null },
+          }),
+        ),
+      "Shop information updated",
+    );
+    if (result.ok) onOpenChange(false);
   });
 
   return (
@@ -82,7 +91,7 @@ export function RetailerEditDialog({ retailer, open, onOpenChange }: { retailer:
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">Save changes</Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>Save changes</Button>
           </DialogFooter>
         </form>
       </DialogContent>

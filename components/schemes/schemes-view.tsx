@@ -2,8 +2,8 @@
 
 import { CalendarRange, Plus, Target, Trophy } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { matches } from "@/components/data-table/table-toolbar";
+import { keepPreviousData } from "@tanstack/react-query";
+import { PaginationBar } from "@/components/data-table/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { ProgressBar } from "@/components/shared/progress-bar";
@@ -11,29 +11,25 @@ import { RoleBadge, StatusBadge } from "@/components/shared/status-badge";
 import { StatusTabs } from "@/components/shared/status-tabs";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { listSchemes } from "@/lib/mock-api/queries";
-import { schemeParticipants } from "@/lib/mock-api/rules";
-import { useDb } from "@/lib/mock-api/store";
+import { $api } from "@/lib/api/client";
+import { useStatusCounts } from "@/lib/api/hooks";
+import type { QueryOf } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { formatDate, formatINR, formatPoints } from "@/lib/utils/format";
 import { SCHEME_STATUSES, type SchemeStatus } from "@/types";
 
-type Tab = "All" | SchemeStatus;
+type Tab = "all" | SchemeStatus;
 
 export function SchemesView() {
-  const db = useDb();
-  const schemes = listSchemes(db);
-  const [tab, setTab] = useState<Tab>("All");
-  const [search, setSearch] = useState("");
-  const cards = useMemo(
-    () =>
-      schemes.map((scheme) => {
-        const participants = schemeParticipants(db, scheme);
-        const avg = participants.length ? Math.round(participants.reduce((s, p) => s + p.percent, 0) / participants.length) : 0;
-        return { scheme, participants: participants.length, avg };
-      }),
-    [db, schemes],
+  const list = usePagedList<{ status: Tab }>({ status: "all" }, { pageSize: 12 });
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/schemes",
+    { params: { query: list.query as QueryOf<"/api/v1/admin/schemes"> } },
+    { placeholderData: keepPreviousData },
   );
-  const filtered = cards.filter(({ scheme }) => (tab === "All" || scheme.status === tab) && matches(search, scheme.id, scheme.name, scheme.description));
+  const { counts, total } = useStatusCounts("/api/v1/admin/schemes/status-counts");
+  const filtered = (data?.items ?? []).map((scheme) => ({ scheme, participants: scheme.summary.participants, avg: scheme.summary.averagePercent }));
 
   return (
     <div>
@@ -49,18 +45,18 @@ export function SchemesView() {
       <div className="rounded-xl border border-border bg-card">
         <StatusTabs
           label="Scheme status"
-          value={tab}
-          onChange={setTab}
-          tabs={(["All", ...SCHEME_STATUSES] as Tab[]).map((value) => ({
+          value={list.filters.status}
+          onChange={(value) => list.setFilter("status", value)}
+          tabs={(["all", ...SCHEME_STATUSES] as Tab[]).map((value) => ({
             value,
-            label: value,
-            count: value === "All" ? schemes.length : schemes.filter((s) => s.status === value).length,
+            label: value === "all" ? "All" : value,
+            count: value === "all" ? total : (counts[value] ?? 0),
           }))}
         />
         <div className="border-b border-border p-4">
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search schemes" aria-label="Search schemes" className="h-9 max-w-xs" />
+          <Input value={list.search} onChange={(e) => list.setSearch(e.target.value)} placeholder="Search schemes" aria-label="Search schemes" className="h-9 max-w-xs" />
         </div>
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && !isFetching ? (
           <EmptyState title="No schemes in this view" description="Create a scheme or choose another status." />
         ) : (
           <div className="grid gap-4 p-4 md:grid-cols-2 2xl:grid-cols-3">
@@ -87,7 +83,7 @@ export function SchemesView() {
                     {scheme.targetType === "Sales Amount" ? `${formatINR(scheme.targetValue)} eligible sales` : `${scheme.targetValue} approved scans`}
                   </span>
                   <span className="flex items-center gap-2">
-                    <Trophy className="size-3.5 text-gold" /> {formatPoints(scheme.incentivePoints)} on achievement · {scheme.awardedUserIds.length} achieved
+                    <Trophy className="size-3.5 text-gold" /> {formatPoints(scheme.incentivePoints)} on achievement · {scheme.summary.achievers} achieved
                   </span>
                 </div>
                 <div className="mt-auto pt-4">
@@ -103,6 +99,7 @@ export function SchemesView() {
             ))}
           </div>
         )}
+        <PaginationBar page={list.page} pageSize={list.pageSize} total={data?.total ?? 0} onPageChange={list.setPage} loading={isFetching && !data} />
       </div>
     </div>
   );

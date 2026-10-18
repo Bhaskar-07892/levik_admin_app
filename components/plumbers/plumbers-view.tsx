@@ -1,35 +1,29 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { DataTable, type Column } from "@/components/data-table/data-table";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { SimpleSelect, toOptions } from "@/components/forms/simple-select";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { listPlumbers, type PlumberRow } from "@/lib/mock-api/queries";
-import { useDb } from "@/lib/mock-api/store";
+import { $api } from "@/lib/api/client";
+import type { PlumberListItem, QueryOf } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { formatDate, formatNumber } from "@/lib/utils/format";
 import { ACCOUNT_STATUSES, PLUMBER_VERIFICATION_STATUSES } from "@/types";
 
 export function PlumbersView() {
-  const db = useDb();
-  const rows = useMemo(() => listPlumbers(db), [db]);
-  const [search, setSearch] = useState("");
-  const [verification, setVerification] = useState("all");
-  const [account, setAccount] = useState("all");
-  const [state, setState] = useState("all");
-  const states = useMemo(() => [...new Set(db.plumbers.map((p) => p.state))].sort(), [db]);
-
-  const filtered = rows.filter(
-    (p) =>
-      matches(search, p.id, p.name, p.mobile, p.city) &&
-      (verification === "all" || p.verificationStatus === verification) &&
-      (account === "all" || p.accountStatus === account) &&
-      (state === "all" || p.state === state),
+  const list = usePagedList({ verificationStatus: "all", accountStatus: "all", state: "all" }, { sort: { id: "id", desc: false } });
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/plumbers",
+    { params: { query: list.query as QueryOf<"/api/v1/admin/plumbers"> } },
+    { placeholderData: keepPreviousData },
   );
+  const { data: states = [] } = $api.useQuery("get", "/api/v1/admin/plumbers/states", {}, { staleTime: 5 * 60_000 });
 
-  const columns: Column<PlumberRow>[] = [
-    { id: "id", header: "Plumber ID", cell: (p) => <span className="font-mono text-xs">{p.id}</span>, sortValue: (p) => p.id },
+  const columns: Column<PlumberListItem>[] = [
+    { id: "id", header: "Plumber ID", cell: (p) => <span className="font-mono text-xs">{p.id}</span>, sortable: true },
     {
       id: "name",
       header: "Name",
@@ -39,20 +33,20 @@ export function PlumbersView() {
           <p className="text-xs text-muted-foreground">{p.mobile}</p>
         </div>
       ),
-      sortValue: (p) => p.name,
+      sortable: true,
     },
-    { id: "city", header: "City", cell: (p) => p.city, sortValue: (p) => p.city },
-    { id: "state", header: "State", cell: (p) => p.state, sortValue: (p) => p.state },
-    { id: "registered", header: "Registered", cell: (p) => formatDate(p.registeredAt), sortValue: (p) => p.registeredAt },
-    { id: "verification", header: "Verification", cell: (p) => <StatusBadge status={p.verificationStatus} />, sortValue: (p) => p.verificationStatus },
-    { id: "account", header: "Account", cell: (p) => <StatusBadge status={p.accountStatus} />, sortValue: (p) => p.accountStatus },
-    { id: "lifetime", header: "Lifetime pts", align: "right", cell: (p) => formatNumber(p.points.lifetime), sortValue: (p) => p.points.lifetime },
+    { id: "city", header: "City", cell: (p) => p.city },
+    { id: "state", header: "State", cell: (p) => p.state },
+    { id: "registeredAt", header: "Registered", cell: (p) => formatDate(p.registeredAt), sortable: true },
+    { id: "verification", header: "Verification", cell: (p) => <StatusBadge status={p.verificationStatus} /> },
+    { id: "account", header: "Account", cell: (p) => <StatusBadge status={p.accountStatus} /> },
+    { id: "lifetime", header: "Lifetime pts", align: "right", cell: (p) => formatNumber(p.lifetimePoints) },
     {
-      id: "available",
+      id: "availablePoints",
       header: "Available pts",
       align: "right",
-      cell: (p) => <span className="font-semibold text-primary">{formatNumber(p.points.available)}</span>,
-      sortValue: (p) => p.points.available,
+      cell: (p) => <span className="font-semibold text-primary">{formatNumber(p.availablePoints)}</span>,
+      sortable: true,
     },
   ];
 
@@ -63,12 +57,31 @@ export function PlumbersView() {
         description="Registered plumbers, their KYC verification and account status, and points balances derived from the ledger."
       />
       <div className="rounded-xl border border-border bg-card">
-        <TableToolbar search={search} onSearchChange={setSearch} placeholder="Search name, ID, mobile or city">
-          <SimpleSelect value={verification} onValueChange={setVerification} options={toOptions(PLUMBER_VERIFICATION_STATUSES, "All verification")} ariaLabel="Filter by verification" />
-          <SimpleSelect value={account} onValueChange={setAccount} options={toOptions(ACCOUNT_STATUSES, "All accounts")} ariaLabel="Filter by account status" />
-          <SimpleSelect value={state} onValueChange={setState} options={toOptions(states, "All states")} ariaLabel="Filter by state" />
+        <TableToolbar search={list.search} onSearchChange={list.setSearch} placeholder="Search name, ID, mobile or city">
+          <SimpleSelect
+            value={list.filters.verificationStatus}
+            onValueChange={(value) => list.setFilter("verificationStatus", value)}
+            options={toOptions(PLUMBER_VERIFICATION_STATUSES, "All verification")}
+            ariaLabel="Filter by verification"
+          />
+          <SimpleSelect
+            value={list.filters.accountStatus}
+            onValueChange={(value) => list.setFilter("accountStatus", value)}
+            options={toOptions(ACCOUNT_STATUSES, "All accounts")}
+            ariaLabel="Filter by account status"
+          />
+          <SimpleSelect value={list.filters.state} onValueChange={(value) => list.setFilter("state", value)} options={toOptions(states as string[], "All states")} ariaLabel="Filter by state" />
         </TableToolbar>
-        <DataTable caption="Plumbers" data={filtered} columns={columns} getRowId={(p) => p.id} rowHref={(p) => `/plumbers/${p.id}`} initialSort={{ id: "id", desc: false }} />
+        <DataTable
+          caption="Plumbers"
+          data={data?.items ?? []}
+          columns={columns}
+          getRowId={(p) => p.id}
+          rowHref={(p) => `/plumbers/${p.id}`}
+          loading={isFetching}
+          serverSort={{ value: list.sort, onChange: list.setSort }}
+          pagination={{ page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage }}
+        />
       </div>
     </div>
   );

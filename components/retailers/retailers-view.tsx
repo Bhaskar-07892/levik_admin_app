@@ -1,39 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { DataTable, type Column } from "@/components/data-table/data-table";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { SimpleSelect, toOptions } from "@/components/forms/simple-select";
 import { PageHeader } from "@/components/shared/page-header";
 import { ProgressBar } from "@/components/shared/progress-bar";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { listRetailers, type RetailerRow } from "@/lib/mock-api/queries";
-import { useDb } from "@/lib/mock-api/store";
+import { $api } from "@/lib/api/client";
+import { useNotifications } from "@/lib/api/hooks";
+import type { QueryOf, RetailerListItem } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { formatINR } from "@/lib/utils/format";
 import { RETAILER_ACCOUNT_STATUSES, RETAILER_VERIFICATION_STATUSES } from "@/types";
 
 export function RetailersView() {
-  const db = useDb();
-  const rows = useMemo(() => listRetailers(db), [db]);
-  const [search, setSearch] = useState("");
-  const [verification, setVerification] = useState("all");
-  const [account, setAccount] = useState("all");
-  const [state, setState] = useState("all");
-  const states = useMemo(() => [...new Set(db.retailers.map((r) => r.state))].sort(), [db]);
-  const pending = rows.filter((r) => r.verificationStatus === "Pending").length;
-
-  const filtered = rows.filter(
-    (r) =>
-      matches(search, r.id, r.shopName, r.ownerName, r.mobile, r.city, r.gstin) &&
-      (verification === "all" || r.verificationStatus === verification) &&
-      (account === "all" || r.accountStatus === account) &&
-      (state === "all" || r.state === state),
+  const list = usePagedList({ verificationStatus: "all", accountStatus: "all", state: "all" }, { sort: { id: "id", desc: false } });
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/retailers",
+    { params: { query: list.query as QueryOf<"/api/v1/admin/retailers"> } },
+    { placeholderData: keepPreviousData },
   );
+  const { data: states = [] } = $api.useQuery("get", "/api/v1/admin/retailers/states", {}, { staleTime: 5 * 60_000 });
+  const pending = useNotifications().data?.counts.pendingRetailers ?? 0;
 
-  const columns: Column<RetailerRow>[] = [
-    { id: "id", header: "Retailer ID", cell: (r) => <span className="font-mono text-xs">{r.id}</span>, sortValue: (r) => r.id },
+  const columns: Column<RetailerListItem>[] = [
+    { id: "id", header: "Retailer ID", cell: (r) => <span className="font-mono text-xs">{r.id}</span>, sortable: true },
     {
-      id: "shop",
+      id: "shopName",
       header: "Shop",
       cell: (r) => (
         <div>
@@ -43,7 +38,7 @@ export function RetailersView() {
           </p>
         </div>
       ),
-      sortValue: (r) => r.shopName,
+      sortable: true,
     },
     {
       id: "city",
@@ -54,26 +49,25 @@ export function RetailersView() {
           <p className="text-xs text-muted-foreground">{r.state}</p>
         </div>
       ),
-      sortValue: (r) => r.city,
     },
     { id: "gstin", header: "GSTIN", cell: (r) => <span className="font-mono text-xs">{r.gstin ?? "Not registered"}</span> },
-    { id: "verification", header: "Verification", cell: (r) => <StatusBadge status={r.verificationStatus} />, sortValue: (r) => r.verificationStatus },
-    { id: "sales", header: "Sales · 30 days", align: "right", cell: (r) => formatINR(r.sales30d), sortValue: (r) => r.sales30d },
+    { id: "verification", header: "Verification", cell: (r) => <StatusBadge status={r.verificationStatus} /> },
+    { id: "sales30d", header: "Sales · 30 days", align: "right", cell: (r) => formatINR(r.sales30d), sortable: true },
     {
-      id: "achievement",
+      id: "achievementPct",
       header: "Target",
       cell: (r) => (
         <div className="w-28">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">{formatINR(r.monthlyTarget)}</span>
-            <span className="font-medium tabular-nums">{r.achievement}%</span>
+            <span className="font-medium tabular-nums">{r.achievementPct}%</span>
           </div>
-          <ProgressBar value={r.achievement} className="mt-1" />
+          <ProgressBar value={r.achievementPct} className="mt-1" />
         </div>
       ),
-      sortValue: (r) => r.achievement,
+      sortable: true,
     },
-    { id: "account", header: "Account", cell: (r) => <StatusBadge status={r.accountStatus} />, sortValue: (r) => r.accountStatus },
+    { id: "account", header: "Account", cell: (r) => <StatusBadge status={r.accountStatus} /> },
   ];
 
   return (
@@ -83,12 +77,31 @@ export function RetailersView() {
         description={`Shops selling Levik products. ${pending ? `${pending} application${pending > 1 ? "s" : ""} awaiting approval. ` : ""}Sales and target achievement use approved invoices from the last 30 days.`}
       />
       <div className="rounded-xl border border-border bg-card">
-        <TableToolbar search={search} onSearchChange={setSearch} placeholder="Search shop, owner, GSTIN or city">
-          <SimpleSelect value={verification} onValueChange={setVerification} options={toOptions(RETAILER_VERIFICATION_STATUSES, "All verification")} ariaLabel="Filter by verification" />
-          <SimpleSelect value={account} onValueChange={setAccount} options={toOptions(RETAILER_ACCOUNT_STATUSES, "All accounts")} ariaLabel="Filter by account status" />
-          <SimpleSelect value={state} onValueChange={setState} options={toOptions(states, "All states")} ariaLabel="Filter by state" />
+        <TableToolbar search={list.search} onSearchChange={list.setSearch} placeholder="Search shop, owner, GSTIN or city">
+          <SimpleSelect
+            value={list.filters.verificationStatus}
+            onValueChange={(value) => list.setFilter("verificationStatus", value)}
+            options={toOptions(RETAILER_VERIFICATION_STATUSES, "All verification")}
+            ariaLabel="Filter by verification"
+          />
+          <SimpleSelect
+            value={list.filters.accountStatus}
+            onValueChange={(value) => list.setFilter("accountStatus", value)}
+            options={toOptions(RETAILER_ACCOUNT_STATUSES, "All accounts")}
+            ariaLabel="Filter by account status"
+          />
+          <SimpleSelect value={list.filters.state} onValueChange={(value) => list.setFilter("state", value)} options={toOptions(states as string[], "All states")} ariaLabel="Filter by state" />
         </TableToolbar>
-        <DataTable caption="Retailers" data={filtered} columns={columns} getRowId={(r) => r.id} rowHref={(r) => `/retailers/${r.id}`} initialSort={{ id: "id", desc: false }} />
+        <DataTable
+          caption="Retailers"
+          data={data?.items ?? []}
+          columns={columns}
+          getRowId={(r) => r.id}
+          rowHref={(r) => `/retailers/${r.id}`}
+          loading={isFetching}
+          serverSort={{ value: list.sort, onChange: list.setSort }}
+          pagination={{ page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage }}
+        />
       </div>
     </div>
   );

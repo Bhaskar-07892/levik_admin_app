@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/forms/field";
 import { SimpleSelect } from "@/components/forms/simple-select";
-import { adjustPoints } from "@/lib/mock-api/services";
+import { api, call } from "@/lib/api/client";
 import { runAction } from "@/lib/utils/run-action";
 import { formatNumber } from "@/lib/utils/format";
 
@@ -33,7 +33,9 @@ function AdjustForm({ onOpenChange, userId, userName, available }: Props) {
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<{ amount?: string; reason?: string }>({});
 
-  const submit = (event: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const value = Number(amount);
     const next: typeof errors = {};
@@ -42,11 +44,13 @@ function AdjustForm({ onOpenChange, userId, userName, available }: Props) {
     setErrors(next);
     if (Object.keys(next).length) return;
     const signed = direction === "credit" ? value : -value;
-    const ok = runAction(
-      () => adjustPoints(userId, signed, reason),
+    setSubmitting(true);
+    const result = await runAction(
+      () => call(api.POST("/api/v1/admin/points/adjustments", { body: { userId, amount: signed, reason: reason.trim() } })),
       `${formatNumber(value)} points ${direction === "credit" ? "credited to" : "debited from"} ${userName}`,
     );
-    if (ok.ok) onOpenChange(false);
+    setSubmitting(false);
+    if (result.ok) onOpenChange(false);
   };
 
   return (
@@ -80,7 +84,7 @@ function AdjustForm({ onOpenChange, userId, userName, available }: Props) {
         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button type="submit">Post adjustment</Button>
+        <Button type="submit" disabled={submitting}>Post adjustment</Button>
       </DialogFooter>
     </form>
   );

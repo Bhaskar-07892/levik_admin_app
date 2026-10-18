@@ -100,5 +100,6 @@ export const settingsSchema = z.object({
   programmeName: z.string().trim().min(3, "Programme name is required."),
   retailerPointsPer100: z.number({ error: "Enter a rate." }).min(0.1, "Minimum 0.1").max(20, "Maximum 20"),
   lowStockThreshold: z.number({ error: "Enter a threshold." }).int().min(0).max(1000),
+  maxDailyScansPerPlumber: z.number({ error: "Enter a limit." }).int().min(1, "Minimum 1").max(500, "Maximum 500"),
 });
 export type SettingsValues = z.infer<typeof settingsSchema>;

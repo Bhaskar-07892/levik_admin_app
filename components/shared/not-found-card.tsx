@@ -9,7 +9,7 @@ export function NotFoundCard({ entity, backHref, backLabel }: { entity: string; 
       <EmptyState
         icon={SearchX}
         title={`${entity} not found`}
-        description={`This ${entity.toLowerCase()} does not exist in the current demo data. It may have been removed by a data reset.`}
+        description={`No ${entity.toLowerCase()} exists with this reference. Check the link or search for it again.`}
         action={
           <Link href={backHref} className={buttonVariants({ variant: "outline" })}>
             {backLabel}

@@ -1,6 +1,6 @@
 "use client";
 
-import { PERIOD_LABELS, type Period } from "@/lib/mock-api/queries";
+import { PERIOD_LABELS, type Period } from "@/lib/utils/period";
 import { cn } from "@/lib/utils";
 
 export function PeriodFilter({ value, onChange }: { value: Period; onChange: (period: Period) => void }) {

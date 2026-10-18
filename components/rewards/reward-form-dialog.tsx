@@ -11,10 +11,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { createReward, updateReward } from "@/lib/mock-api/services";
+import { api, call } from "@/lib/api/client";
+import type { RewardDto } from "@/lib/api/types";
 import { runAction } from "@/lib/utils/run-action";
 import { rewardSchema, type RewardInput } from "@/lib/validations";
-import { REWARD_CATEGORIES, type Reward } from "@/types";
+import { REWARD_CATEGORIES } from "@/types";
 
 const EMPTY: RewardInput = {
   name: "",
@@ -27,7 +28,7 @@ const EMPTY: RewardInput = {
   eligibleRoles: ["plumber", "retailer"],
 };
 
-const toValues = (r?: Reward): RewardInput =>
+const toValues = (r?: RewardDto): RewardInput =>
   r
     ? {
         name: r.name,
@@ -41,7 +42,7 @@ const toValues = (r?: Reward): RewardInput =>
       }
     : EMPTY;
 
-export function RewardFormDialog({ reward, open, onOpenChange }: { reward?: Reward; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function RewardFormDialog({ reward, open, onOpenChange }: { reward?: RewardDto; open: boolean; onOpenChange: (open: boolean) => void }) {
   const form = useForm<RewardInput>({ resolver: zodResolver(rewardSchema), defaultValues: toValues(reward) });
   const { errors } = form.formState;
 
@@ -49,11 +50,12 @@ export function RewardFormDialog({ reward, open, onOpenChange }: { reward?: Rewa
     if (open) form.reset(toValues(reward));
   }, [open, reward, form]);
 
-  const submit = form.handleSubmit((values) => {
-    const ok = reward
-      ? runAction(() => updateReward(reward.id, values), "Reward updated")
-      : runAction(() => createReward(values), (r) => `${r.name} added to rewards`);
-    if (ok.ok) onOpenChange(false);
+  const submit = form.handleSubmit(async ({ stock, ...values }) => {
+    // Stock of an existing reward only changes through audited stock adjustments.
+    const result = reward
+      ? await runAction(() => call(api.PATCH("/api/v1/admin/rewards/{id}", { params: { path: { id: reward.id } }, body: values })), "Reward updated")
+      : await runAction(() => call(api.POST("/api/v1/admin/rewards", { body: { ...values, stock } })), (r) => `${r.name} added to rewards`);
+    if (result.ok) onOpenChange(false);
   });
 
   return (
@@ -62,7 +64,7 @@ export function RewardFormDialog({ reward, open, onOpenChange }: { reward?: Rewa
         <form onSubmit={submit} className="grid gap-4" noValidate>
           <DialogHeader>
             <DialogTitle>{reward ? "Edit reward" : "Add reward"}</DialogTitle>
-            <DialogDescription>Point thresholds are sample values for the demo, not official Levik programme rules.</DialogDescription>
+            <DialogDescription>Points required and stock are programme settings – changes are recorded in the audit log.</DialogDescription>
           </DialogHeader>
           <div className="grid max-h-[62vh] gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
             <Field label="Reward name" htmlFor="rw-name" error={errors.name?.message} className="sm:col-span-2">
@@ -98,8 +100,13 @@ export function RewardFormDialog({ reward, open, onOpenChange }: { reward?: Rewa
             <Field label="Points required" htmlFor="rw-points" error={errors.pointsRequired?.message}>
               <Input id="rw-points" type="number" min={0} step={100} aria-invalid={Boolean(errors.pointsRequired)} {...form.register("pointsRequired", { valueAsNumber: true })} />
             </Field>
-            <Field label="Stock quantity" htmlFor="rw-stock" error={errors.stock?.message}>
-              <Input id="rw-stock" type="number" min={0} aria-invalid={Boolean(errors.stock)} {...form.register("stock", { valueAsNumber: true })} />
+            <Field
+              label={reward ? "Stock quantity" : "Opening stock"}
+              htmlFor="rw-stock"
+              error={errors.stock?.message}
+              hint={reward ? "Use “Adjust stock” to change stock with a reason." : undefined}
+            >
+              <Input id="rw-stock" type="number" min={0} disabled={Boolean(reward)} aria-invalid={Boolean(errors.stock)} {...form.register("stock", { valueAsNumber: true })} />
             </Field>
             <Field label="Eligible roles" error={errors.eligibleRoles?.message}>
               <Controller

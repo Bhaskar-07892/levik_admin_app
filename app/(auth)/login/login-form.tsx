@@ -8,10 +8,13 @@ import { useForm } from "react-hook-form";
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { recordSessionEvent } from "@/lib/mock-api/services";
-import { getDb } from "@/lib/mock-api/store";
-import { DEMO_CREDENTIALS, signIn, useSession } from "@/lib/storage/session";
+import { signIn, useSession } from "@/lib/api/auth";
+import { errorMessage } from "@/lib/api/errors";
 import { loginSchema, type LoginValues } from "@/lib/validations";
+
+/** Seeded local/demo admin. Shown only outside production builds. */
+const DEMO_CREDENTIALS = { email: "admin@levik.demo", password: "LevikDemo@123" } as const;
+const SHOW_DEMO_HINT = process.env.NEXT_PUBLIC_SHOW_DEMO_LOGIN !== "false";
 
 export function LoginForm() {
   const router = useRouter();
@@ -22,19 +25,17 @@ export function LoginForm() {
   const form = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { email: "", password: "" } });
 
   useEffect(() => {
-    if (session) router.replace("/dashboard");
-  }, [session, router]);
+    if (session.status === "authenticated") router.replace("/dashboard");
+  }, [session.status, router]);
 
-  const onSubmit = form.handleSubmit((values) => {
+  const onSubmit = form.handleSubmit(async (values) => {
     setError(null);
     setSubmitting(true);
     try {
-      const db = getDb();
-      signIn(values.email, values.password, db.settings.adminName);
-      recordSessionEvent("Admin signed in");
+      await signIn(values.email.trim(), values.password);
       router.replace("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed.");
+      setError(errorMessage(err));
       setSubmitting(false);
     }
   });
@@ -76,11 +77,12 @@ export function LoginForm() {
           Sign in
         </Button>
       </form>
+      {SHOW_DEMO_HINT ? (
       <div className="mt-6 rounded-lg border border-[#e7dcc6] bg-gold-soft p-4 text-sm text-[#6b5326]">
         <p className="flex items-center gap-1.5 font-medium">
-          <Info className="size-4" /> Demo authentication
+          <Info className="size-4" /> Demo account
         </p>
-        <p className="mt-1 text-xs">This is a simulated sign-in for client demos. It is not production-secure authentication.</p>
+        <p className="mt-1 text-xs">Seeded admin for local and demo environments. Hide with NEXT_PUBLIC_SHOW_DEMO_LOGIN=false.</p>
         <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
           <dt className="font-medium">Email</dt>
           <dd className="font-mono">{DEMO_CREDENTIALS.email}</dd>
@@ -100,6 +102,7 @@ export function LoginForm() {
           Fill demo credentials
         </Button>
       </div>
+      ) : null}
     </>
   );
 }

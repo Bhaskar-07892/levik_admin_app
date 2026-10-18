@@ -1,19 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { keepPreviousData } from "@tanstack/react-query";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { SimpleSelect } from "@/components/forms/simple-select";
 import { DemoNotice } from "@/components/shared/demo-notice";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusTabs } from "@/components/shared/status-tabs";
-import { listInvoices } from "@/lib/mock-api/queries";
-import { useDb } from "@/lib/mock-api/store";
+import { $api } from "@/lib/api/client";
+import { useRetailerOptions, useSettings, useStatusCounts } from "@/lib/api/hooks";
+import type { QueryOf } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { INVOICE_STATUSES, type InvoiceStatus } from "@/types";
 import { InvoicesTable } from "./invoices-table";
 
-type Tab = "All" | InvoiceStatus;
+type Tab = "all" | InvoiceStatus;
 const TAB_LABEL: Record<Tab, string> = {
-  All: "All",
+  all: "All",
   Submitted: "Submitted",
   "Under Review": "Under review",
   Approved: "Approved",
@@ -22,18 +24,16 @@ const TAB_LABEL: Record<Tab, string> = {
 };
 
 export function InvoicesView() {
-  const db = useDb();
-  const invoices = useMemo(() => listInvoices(db), [db]);
-  const [tab, setTab] = useState<Tab>("All");
-  const [search, setSearch] = useState("");
-  const [retailer, setRetailer] = useState("all");
-
-  const filtered = invoices.filter(
-    (i) =>
-      (tab === "All" || i.status === tab) &&
-      (retailer === "all" || i.retailerId === retailer) &&
-      matches(search, i.id, i.invoiceNumber, i.retailer?.shopName, i.buyerName, i.reviewer),
+  const list = usePagedList<{ status: Tab; retailerId: string }>({ status: "all", retailerId: "all" });
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/invoices",
+    { params: { query: list.query as QueryOf<"/api/v1/admin/invoices"> } },
+    { placeholderData: keepPreviousData },
   );
+  const { counts, total } = useStatusCounts("/api/v1/admin/invoices/status-counts");
+  const retailers = useRetailerOptions();
+  const { data: settings } = useSettings();
 
   return (
     <div>
@@ -42,28 +42,33 @@ export function InvoicesView() {
         description="Sales invoices uploaded by retailers. Review line items and the calculated incentive before approving."
       />
       <DemoNotice>
-        Incentive rule (sample): {db.settings.retailerPointsPer100} point per ₹100 of pre-GST value on active, reward-eligible products. Invoice documents are mock previews – no OCR is performed.
+        Incentive rule: {settings?.retailerPointsPer100 ?? "—"} point per ₹100 of pre-GST value on active, reward-eligible products. Line items are entered by the
+        retailer; check them against the uploaded document.
       </DemoNotice>
       <div className="rounded-xl border border-border bg-card">
         <StatusTabs
           label="Invoice status"
-          value={tab}
-          onChange={setTab}
-          tabs={(["All", ...INVOICE_STATUSES] as Tab[]).map((value) => ({
+          value={list.filters.status}
+          onChange={(value) => list.setFilter("status", value)}
+          tabs={(["all", ...INVOICE_STATUSES] as Tab[]).map((value) => ({
             value,
             label: TAB_LABEL[value],
-            count: value === "All" ? invoices.length : invoices.filter((i) => i.status === value).length,
+            count: value === "all" ? total : (counts[value] ?? 0),
           }))}
         />
-        <TableToolbar search={search} onSearchChange={setSearch} placeholder="Search invoice no., retailer, buyer">
+        <TableToolbar search={list.search} onSearchChange={list.setSearch} placeholder="Search invoice no., retailer, buyer">
           <SimpleSelect
-            value={retailer}
-            onValueChange={setRetailer}
+            value={list.filters.retailerId}
+            onValueChange={(value) => list.setFilter("retailerId", value)}
             ariaLabel="Filter by retailer"
-            options={[{ value: "all", label: "All retailers" }, ...db.retailers.map((r) => ({ value: r.id, label: r.shopName }))]}
+            options={[{ value: "all", label: "All retailers" }, ...retailers]}
           />
         </TableToolbar>
-        <InvoicesTable rows={filtered} />
+        <InvoicesTable
+          rows={data?.items ?? []}
+          loading={isFetching}
+          pagination={{ page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage }}
+        />
       </div>
     </div>
   );

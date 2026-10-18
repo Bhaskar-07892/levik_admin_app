@@ -1,48 +1,51 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { keepPreviousData } from "@tanstack/react-query";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { SimpleSelect } from "@/components/forms/simple-select";
 import { DemoNotice } from "@/components/shared/demo-notice";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusTabs } from "@/components/shared/status-tabs";
-import { listRedemptions } from "@/lib/mock-api/queries";
-import { useDb } from "@/lib/mock-api/store";
+import { $api } from "@/lib/api/client";
+import { useStatusCounts } from "@/lib/api/hooks";
+import type { QueryOf } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { REDEMPTION_STATUSES, type RedemptionStatus } from "@/types";
 import { RedemptionsTable } from "./redemptions-table";
 
-type Tab = "All" | RedemptionStatus;
+type Tab = "all" | RedemptionStatus;
 
 export function RedemptionsView() {
-  const db = useDb();
-  const rows = useMemo(() => listRedemptions(db), [db]);
-  const [tab, setTab] = useState<Tab>("All");
-  const [search, setSearch] = useState("");
-  const [role, setRole] = useState("all");
-
-  const filtered = rows.filter(
-    (r) => (tab === "All" || r.status === tab) && (role === "all" || r.userRole === role) && matches(search, r.id, r.userName, r.reward?.name, r.fulfilmentRef),
+  const list = usePagedList<{ status: Tab; role: string }>({ status: "all", role: "all" });
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/redemptions",
+    { params: { query: list.query as QueryOf<"/api/v1/admin/redemptions"> } },
+    { placeholderData: keepPreviousData },
   );
+  const { counts, total } = useStatusCounts("/api/v1/admin/redemptions/status-counts");
 
   return (
     <div>
       <PageHeader title="Redemptions" description="Reward requests from plumbers and retailers. Approve to deduct points, then track fulfilment through to delivery." />
-      <DemoNotice>Points are deducted exactly once, at approval. Later status changes never deduct again; cancellations and failures after approval refund once. Courier and voucher references are mock values.</DemoNotice>
+      <DemoNotice>
+        Points are deducted exactly once, at approval. Later status changes never deduct again; cancellations and failures after approval refund once and restore stock.
+      </DemoNotice>
       <div className="rounded-xl border border-border bg-card">
         <StatusTabs
           label="Redemption status"
-          value={tab}
-          onChange={setTab}
-          tabs={(["All", ...REDEMPTION_STATUSES] as Tab[]).map((value) => ({
+          value={list.filters.status}
+          onChange={(value) => list.setFilter("status", value)}
+          tabs={(["all", ...REDEMPTION_STATUSES] as Tab[]).map((value) => ({
             value,
-            label: value,
-            count: value === "All" ? rows.length : rows.filter((r) => r.status === value).length,
+            label: value === "all" ? "All" : value,
+            count: value === "all" ? total : (counts[value] ?? 0),
           }))}
         />
-        <TableToolbar search={search} onSearchChange={setSearch} placeholder="Search reference, user or reward">
+        <TableToolbar search={list.search} onSearchChange={list.setSearch} placeholder="Search reference, user or reward">
           <SimpleSelect
-            value={role}
-            onValueChange={setRole}
+            value={list.filters.role}
+            onValueChange={(value) => list.setFilter("role", value)}
             ariaLabel="Filter by role"
             options={[
               { value: "all", label: "All roles" },
@@ -51,7 +54,11 @@ export function RedemptionsView() {
             ]}
           />
         </TableToolbar>
-        <RedemptionsTable rows={filtered} />
+        <RedemptionsTable
+          rows={data?.items ?? []}
+          loading={isFetching}
+          pagination={{ page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage }}
+        />
       </div>
     </div>
   );

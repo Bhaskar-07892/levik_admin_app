@@ -1,12 +1,13 @@
 "use client";
 
 import { History, MoreHorizontal, PackagePlus, Pencil, Plus, Power, PowerOff } from "lucide-react";
-import { useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, type Column } from "@/components/data-table/data-table";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { Field } from "@/components/forms/field";
 import { SimpleSelect, toOptions } from "@/components/forms/simple-select";
-import { RedemptionsTable } from "@/components/redemptions/redemptions-table";
+import { RelatedRedemptions } from "@/components/redemptions/redemptions-table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DemoNotice } from "@/components/shared/demo-notice";
 import { PageHeader } from "@/components/shared/page-header";
@@ -16,12 +17,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { listRedemptions, listRewards, type RewardRow } from "@/lib/mock-api/queries";
-import { adjustRewardStock, setRewardActive } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { $api, api, call } from "@/lib/api/client";
+import type { RewardDto as Reward } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { formatNumber } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
-import { REWARD_CATEGORIES, type Reward } from "@/types";
+import { REWARD_CATEGORIES, type RewardCategory } from "@/types";
 import { RewardFormDialog } from "./reward-form-dialog";
 import { RewardIcon } from "./reward-icon";
 
@@ -29,6 +30,7 @@ function StockDialog({ reward, onOpenChange }: { reward: Reward | null; onOpenCh
   const [delta, setDelta] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   return (
     <Dialog
       open={reward !== null}
@@ -45,14 +47,19 @@ function StockDialog({ reward, onOpenChange }: { reward: Reward | null; onOpenCh
         <form
           className="grid gap-4"
           noValidate
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!reward) return;
             const value = Number(delta);
             if (!Number.isInteger(value) || value === 0) return setError("Enter a non-zero whole number, e.g. 10 or -2.");
             setError(null);
-            const ok = runAction(() => adjustRewardStock(reward.id, value, reason), `Stock updated for ${reward.name}`);
-            if (ok.ok) {
+            setSubmitting(true);
+            const result = await runAction(
+              () => call(api.POST("/api/v1/admin/rewards/{id}/stock-adjustments", { params: { path: { id: reward.id } }, body: { delta: value, reason: reason.trim() } })),
+              `Stock updated for ${reward.name}`,
+            );
+            setSubmitting(false);
+            if (result.ok) {
               setDelta("");
               setReason("");
               onOpenChange(false);
@@ -75,7 +82,9 @@ function StockDialog({ reward, onOpenChange }: { reward: Reward | null; onOpenCh
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">Update stock</Button>
+            <Button type="submit" disabled={submitting}>
+              Update stock
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -84,26 +93,31 @@ function StockDialog({ reward, onOpenChange }: { reward: Reward | null; onOpenCh
 }
 
 export function RewardsView() {
-  const db = useDb();
-  const rewards = useMemo(() => listRewards(db), [db]);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
-  const [status, setStatus] = useState("all");
+  const list = usePagedList({ category: "all", status: "all" });
+  const { category, status } = list.filters;
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/rewards",
+    {
+      params: {
+        query: {
+          page: list.page,
+          pageSize: list.pageSize,
+          search: list.query.search,
+          category: category === "all" ? undefined : (category as RewardCategory),
+          isActive: status === "all" ? undefined : status === "Active",
+        },
+      },
+    },
+    { placeholderData: keepPreviousData },
+  );
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Reward | undefined>();
   const [stockReward, setStockReward] = useState<Reward | null>(null);
   const [toggleReward, setToggleReward] = useState<Reward | null>(null);
   const [historyReward, setHistoryReward] = useState<Reward | null>(null);
-  const history = useMemo(() => (historyReward ? listRedemptions(db).filter((r) => r.rewardId === historyReward.id) : []), [db, historyReward]);
 
-  const filtered = rewards.filter(
-    (r) =>
-      matches(search, r.id, r.name, r.category) &&
-      (category === "all" || r.category === category) &&
-      (status === "all" || (status === "Active" ? r.isActive : !r.isActive)),
-  );
-
-  const columns: Column<RewardRow>[] = [
+  const columns: Column<Reward>[] = [
     {
       id: "reward",
       header: "Reward",
@@ -116,7 +130,6 @@ export function RewardsView() {
           </div>
         </div>
       ),
-      sortValue: (r) => r.name,
     },
     {
       id: "category",
@@ -127,7 +140,6 @@ export function RewardsView() {
           <p className="text-xs text-muted-foreground">{r.type}</p>
         </div>
       ),
-      sortValue: (r) => r.category,
     },
     {
       id: "roles",
@@ -145,17 +157,15 @@ export function RewardsView() {
       header: "Points",
       align: "right",
       cell: (r) => <span className="font-semibold text-[#8a6a2f]">{formatNumber(r.pointsRequired)}</span>,
-      sortValue: (r) => r.pointsRequired,
     },
     {
       id: "stock",
       header: "Stock",
       align: "right",
       cell: (r) => <span className={r.stock === 0 ? "font-medium text-destructive" : r.stock <= 5 ? "font-medium text-warning" : ""}>{r.stock}</span>,
-      sortValue: (r) => r.stock,
     },
-    { id: "redeemed", header: "Redeemed", align: "right", cell: (r) => r.redemptionCount, sortValue: (r) => r.redemptionCount },
-    { id: "status", header: "Status", cell: (r) => <StatusBadge status={r.isActive ? "Active" : "Inactive"} />, sortValue: (r) => String(r.isActive) },
+    { id: "redeemed", header: "Redeemed", align: "right", cell: (r) => r.redeemedCount },
+    { id: "status", header: "Status", cell: (r) => <StatusBadge status={r.isActive ? "Active" : "Inactive"} /> },
     {
       id: "actions",
       header: "",
@@ -205,13 +215,20 @@ export function RewardsView() {
           </Button>
         }
       />
-      <DemoNotice>Point thresholds are configurable sample values for demonstration, not official Levik programme rules. Fulfilment uses mock references.</DemoNotice>
+      <DemoNotice>Stock changes only through “Adjust stock” (with a reason) and approvals. It can never go below zero, and every change is audited.</DemoNotice>
       <div className="rounded-xl border border-border bg-card">
-        <TableToolbar search={search} onSearchChange={setSearch} placeholder="Search rewards">
-          <SimpleSelect value={category} onValueChange={setCategory} options={toOptions(REWARD_CATEGORIES, "All categories")} ariaLabel="Filter by category" />
-          <SimpleSelect value={status} onValueChange={setStatus} options={toOptions(["Active", "Inactive"], "All statuses")} ariaLabel="Filter by status" />
+        <TableToolbar search={list.search} onSearchChange={list.setSearch} placeholder="Search rewards">
+          <SimpleSelect value={category} onValueChange={(value) => list.setFilter("category", value)} options={toOptions(REWARD_CATEGORIES, "All categories")} ariaLabel="Filter by category" />
+          <SimpleSelect value={status} onValueChange={(value) => list.setFilter("status", value)} options={toOptions(["Active", "Inactive"], "All statuses")} ariaLabel="Filter by status" />
         </TableToolbar>
-        <DataTable caption="Rewards" data={filtered} columns={columns} getRowId={(r) => r.id} initialSort={{ id: "points", desc: false }} />
+        <DataTable
+          caption="Rewards"
+          data={data?.items ?? []}
+          columns={columns}
+          getRowId={(r) => r.id}
+          loading={isFetching}
+          pagination={{ page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage }}
+        />
       </div>
 
       <RewardFormDialog reward={editing} open={formOpen} onOpenChange={setFormOpen} />
@@ -223,7 +240,13 @@ export function RewardsView() {
         description={toggleReward?.isActive ? "Users will no longer be able to request this reward. Existing requests are unaffected." : "The reward becomes available for redemption."}
         confirmLabel={toggleReward?.isActive ? "Deactivate" : "Activate"}
         destructive={toggleReward?.isActive}
-        onConfirm={() => toggleReward && runAction(() => setRewardActive(toggleReward.id, !toggleReward.isActive), toggleReward.isActive ? "Reward deactivated" : "Reward activated")}
+        onConfirm={() =>
+          toggleReward &&
+          runAction(
+            () => call(api.PATCH("/api/v1/admin/rewards/{id}", { params: { path: { id: toggleReward.id } }, body: { isActive: !toggleReward.isActive } })),
+            toggleReward.isActive ? "Reward deactivated" : "Reward activated",
+          )
+        }
       />
       <Dialog open={historyReward !== null} onOpenChange={(open) => !open && setHistoryReward(null)}>
         <DialogContent className="sm:max-w-4xl">
@@ -232,7 +255,7 @@ export function RewardsView() {
             <DialogDescription>{historyReward?.name}</DialogDescription>
           </DialogHeader>
           <div className="-mx-4 max-h-[60vh] overflow-y-auto border-t border-border">
-            <RedemptionsTable rows={history} pageSize={8} />
+            {historyReward ? <RelatedRedemptions filter={{ rewardId: historyReward.id }} /> : null}
           </div>
         </DialogContent>
       </Dialog>

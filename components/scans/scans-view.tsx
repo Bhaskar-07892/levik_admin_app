@@ -1,31 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { SimpleSelect } from "@/components/forms/simple-select";
 import { DemoNotice } from "@/components/shared/demo-notice";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusTabs } from "@/components/shared/status-tabs";
-import { listScans } from "@/lib/mock-api/queries";
-import { useDb } from "@/lib/mock-api/store";
+import { keepPreviousData } from "@tanstack/react-query";
+import { $api } from "@/lib/api/client";
+import { useRetailerOptions, useStatusCounts } from "@/lib/api/hooks";
+import type { QueryOf } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { SCAN_STATUSES, type ScanStatus } from "@/types";
 import { ScansTable } from "./scans-table";
 
-type Tab = "All" | ScanStatus;
+type Tab = "all" | ScanStatus;
 
 export function ScansView() {
-  const db = useDb();
-  const scans = useMemo(() => listScans(db), [db]);
-  const [tab, setTab] = useState<Tab>("Pending");
-  const [search, setSearch] = useState("");
-  const [retailer, setRetailer] = useState("all");
-
-  const filtered = scans.filter(
-    (s) =>
-      (tab === "All" || s.status === tab) &&
-      (retailer === "all" || (retailer === "none" ? !s.retailerId : s.retailerId === retailer)) &&
-      matches(search, s.id, s.submittedCode, s.plumber?.name, s.product?.modelCode, s.product?.name, s.invoiceNumber, s.retailer?.shopName),
+  const list = usePagedList<{ status: Tab; retailerId: string }>({ status: "Pending", retailerId: "all" });
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/scans",
+    { params: { query: list.query as QueryOf<"/api/v1/admin/scans"> } },
+    { placeholderData: keepPreviousData },
   );
+  const { counts, total } = useStatusCounts("/api/v1/admin/scans/status-counts");
+  const retailers = useRetailerOptions();
 
   return (
     <div>
@@ -33,31 +32,31 @@ export function ScansView() {
         title="Product Scans"
         description="Plumber product scans awaiting verification. A scan alone is not proof of sale: approve only when the retailer or invoice reference checks out."
       />
-      <DemoNotice>Points shown are sample programme values. Approving a scan credits the plumber once and writes a ledger and audit entry.</DemoNotice>
+      <DemoNotice>Approving a scan claims the product&apos;s QR label, credits the plumber exactly once and writes a ledger and audit entry.</DemoNotice>
       <div className="rounded-xl border border-border bg-card">
         <StatusTabs
           label="Scan status"
-          value={tab}
-          onChange={setTab}
-          tabs={(["All", ...SCAN_STATUSES] as Tab[]).map((value) => ({
+          value={list.filters.status}
+          onChange={(value) => list.setFilter("status", value)}
+          tabs={(["all", ...SCAN_STATUSES] as Tab[]).map((value) => ({
             value,
-            label: value,
-            count: value === "All" ? scans.length : scans.filter((s) => s.status === value).length,
+            label: value === "all" ? "All" : value,
+            count: value === "all" ? total : (counts[value] ?? 0),
           }))}
         />
-        <TableToolbar search={search} onSearchChange={setSearch} placeholder="Search scan ref, serial, plumber, model">
+        <TableToolbar search={list.search} onSearchChange={list.setSearch} placeholder="Search scan ref, serial, plumber, model">
           <SimpleSelect
-            value={retailer}
-            onValueChange={setRetailer}
+            value={list.filters.retailerId}
+            onValueChange={(value) => list.setFilter("retailerId", value)}
             ariaLabel="Filter by retailer"
-            options={[
-              { value: "all", label: "All retailers" },
-              { value: "none", label: "No retailer reference" },
-              ...db.retailers.map((r) => ({ value: r.id, label: r.shopName })),
-            ]}
+            options={[{ value: "all", label: "All retailers" }, { value: "none", label: "No retailer reference" }, ...retailers]}
           />
         </TableToolbar>
-        <ScansTable rows={filtered} />
+        <ScansTable
+          rows={data?.items ?? []}
+          loading={isFetching}
+          pagination={{ page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage }}
+        />
       </div>
     </div>
   );

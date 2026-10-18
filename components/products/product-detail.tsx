@@ -2,31 +2,36 @@
 
 import { ArrowLeft, Pencil, Power, PowerOff } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ScansTable } from "@/components/scans/scans-table";
+import { useState } from "react";
+import { RelatedScans } from "@/components/scans/scans-table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { NotFoundCard } from "@/components/shared/not-found-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { ProductThumb } from "@/components/shared/product-thumb";
+import { QueryBoundary } from "@/components/shared/query-states";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { listInventory, listScans } from "@/lib/mock-api/queries";
-import { setProductActive } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { $api, api, call } from "@/lib/api/client";
+import type { ProductDto } from "@/lib/api/types";
 import { formatDateTime, formatINR, formatNumber } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
+import { LabelBatches } from "./label-batches";
 import { ProductFormDialog } from "./product-form-dialog";
 
 export function ProductDetail({ id }: { id: string }) {
-  const db = useDb();
-  const product = db.products.find((p) => p.id === id);
+  const query = $api.useQuery("get", "/api/v1/admin/products/{id}", { params: { path: { id } } });
+  return (
+    <QueryBoundary query={query} entity="Product" backHref="/products" backLabel="Back to catalogue">
+      {(product) => <ProductPage product={product} />}
+    </QueryBoundary>
+  );
+}
+
+function ProductPage({ product }: { product: ProductDto }) {
   const [editOpen, setEditOpen] = useState(false);
   const [toggleOpen, setToggleOpen] = useState(false);
-  const scans = useMemo(() => listScans(db).filter((s) => s.productId === id), [db, id]);
-  const stock = useMemo(() => listInventory(db).filter((i) => i.productId === id), [db, id]);
-
-  if (!product) return <NotFoundCard entity="Product" backHref="/products" backLabel="Back to catalogue" />;
+  const { data: stockPage } = $api.useQuery("get", "/api/v1/admin/inventory", { params: { query: { productId: product.id, pageSize: 100 } } });
+  const stock = stockPage?.items ?? [];
 
   return (
     <div>
@@ -49,7 +54,7 @@ export function ProductDetail({ id }: { id: string }) {
         }
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
-        <ProductThumb src={product.image} alt={product.name} className="aspect-square w-full rounded-xl border border-border" sizes="380px" />
+        <ProductThumb src={product.imageUrl} alt={product.name} className="aspect-square w-full rounded-xl border border-border" sizes="380px" />
         <div className="space-y-6">
           <SectionCard title="Product information">
             <p className="mb-5 text-sm text-muted-foreground">{product.description}</p>
@@ -61,13 +66,13 @@ export function ProductDetail({ id }: { id: string }) {
                 { label: "Features", value: product.features.length ? product.features.join(" · ") : "—" },
                 { label: "SKU", value: <span className="font-mono">{product.sku}</span> },
                 { label: "Barcode reference", value: <span className="font-mono">{product.barcode}</span> },
-                { label: "Demo MRP", value: formatINR(product.mrp) },
+                { label: "MRP", value: formatINR(product.mrp) },
                 { label: "Reward eligibility", value: product.rewardEligible ? `${formatNumber(product.plumberPoints)} pts per approved scan` : "Not reward-eligible" },
                 { label: "Last updated", value: formatDateTime(product.updatedAt) },
               ]}
             />
           </SectionCard>
-          <SectionCard title="Retailer-reported stock" description="Mock inventory reported by retailers" bodyClassName="p-0">
+          <SectionCard title="Retailer-reported stock" description="Inventory reported by retailers in the app" bodyClassName="p-0">
             {stock.length === 0 ? (
               <p className="px-5 py-6 text-sm text-muted-foreground">No retailer has reported stock for this model.</p>
             ) : (
@@ -75,7 +80,7 @@ export function ProductDetail({ id }: { id: string }) {
                 {stock.map((s) => (
                   <li key={s.id} className="flex items-center justify-between px-5 py-3 text-sm">
                     <Link href={`/retailers/${s.retailerId}`} className="hover:underline">
-                      {s.retailer?.shopName}
+                      {s.retailerName}
                     </Link>
                     <span className="flex items-center gap-3">
                       <span className="tabular-nums">{s.quantity} units</span>
@@ -88,8 +93,11 @@ export function ProductDetail({ id }: { id: string }) {
           </SectionCard>
         </div>
       </div>
+      <div className="mt-6">
+        <LabelBatches product={product} />
+      </div>
       <SectionCard title="Scans of this model" className="mt-6" bodyClassName="p-0">
-        <ScansTable rows={scans} pageSize={5} />
+        <RelatedScans filter={{ productId: product.id }} />
       </SectionCard>
       <ProductFormDialog product={product} open={editOpen} onOpenChange={setEditOpen} />
       <ConfirmDialog
@@ -103,7 +111,12 @@ export function ProductDetail({ id }: { id: string }) {
         }
         confirmLabel={product.isActive ? "Deactivate" : "Activate"}
         destructive={product.isActive}
-        onConfirm={() => runAction(() => setProductActive(product.id, !product.isActive), product.isActive ? "Product deactivated" : "Product activated")}
+        onConfirm={() =>
+          runAction(
+            () => call(api.PATCH("/api/v1/admin/products/{id}/status", { params: { path: { id: product.id } }, body: { isActive: !product.isActive } })),
+            product.isActive ? "Product deactivated" : "Product activated",
+          )
+        }
       />
     </div>
   );

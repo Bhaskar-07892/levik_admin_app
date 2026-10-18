@@ -3,7 +3,7 @@
 import { Bell, ChevronRight, LogOut, Menu, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ALL_NAV_ITEMS, EXTRA_SEGMENT_LABELS } from "@/lib/navigation";
-import { recordSessionEvent } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
-import { signOut } from "@/lib/storage/session";
+import { signOut, useSession } from "@/lib/api/auth";
+import { queryClient } from "@/lib/api/client";
+import { useAdminProfile, useNotifications } from "@/lib/api/hooks";
 import { initials } from "@/lib/utils/format";
 import { AppSidebar } from "./app-sidebar";
 import { GlobalSearch } from "./global-search";
@@ -55,29 +55,9 @@ function Breadcrumbs() {
 }
 
 function Notifications() {
-  const db = useDb();
   const router = useRouter();
-  const prefs = db.settings.notifications;
-  const items = useMemo(() => {
-    const list: Array<{ id: string; title: string; detail: string; href: string }> = [];
-    const pendingScans = db.scans.filter((s) => s.status === "Pending").length;
-    const pendingInvoices = db.invoices.filter((i) => i.status === "Submitted" || i.status === "Under Review").length;
-    const requested = db.redemptions.filter((r) => r.status === "Requested").length;
-    const lowStock = db.inventory.filter((i) => i.quantity <= db.settings.lowStockThreshold).length;
-    const pendingRetailers = db.retailers.filter((r) => r.verificationStatus === "Pending").length;
-    if (prefs.pendingScans && pendingScans)
-      list.push({ id: "scans", title: `${pendingScans} product scans awaiting verification`, detail: "Review proof of sale before crediting points", href: "/scans" });
-    if (prefs.pendingInvoices && pendingInvoices)
-      list.push({ id: "invoices", title: `${pendingInvoices} invoices pending review`, detail: "Approve to credit retailer incentives", href: "/invoices" });
-    if (prefs.redemptions && requested)
-      list.push({ id: "redemptions", title: `${requested} reward requests to process`, detail: "Validate balance and stock", href: "/redemptions" });
-    if (pendingRetailers)
-      list.push({ id: "retailers", title: `${pendingRetailers} retailer applications pending`, detail: "Approve or reject new shops", href: "/retailers" });
-    if (prefs.lowStock && lowStock)
-      list.push({ id: "stock", title: `${lowStock} retailer stock lines low or out`, detail: "Retailer-reported inventory", href: "/inventory" });
-    return list;
-  }, [db, prefs]);
-
+  const { data } = useNotifications();
+  const items = data?.items ?? [];
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="relative" aria-label={`Notifications (${items.length})`} />}>
@@ -109,11 +89,13 @@ function Notifications() {
 }
 
 function ProfileMenu() {
-  const db = useDb();
   const router = useRouter();
-  const logout = () => {
-    recordSessionEvent("Admin signed out");
-    signOut();
+  const session = useSession();
+  const { data: profile } = useAdminProfile();
+  const name = profile?.name ?? (session.status === "authenticated" ? session.user.name : undefined) ?? "Admin";
+  const logout = async () => {
+    await signOut();
+    queryClient.clear();
     router.replace("/login");
   };
   return (
@@ -121,9 +103,9 @@ function ProfileMenu() {
       <DropdownMenuTrigger
         render={<button type="button" className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 text-left hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none" />}
       >
-        <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">{initials(db.settings.adminName)}</span>
+        <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">{initials(name)}</span>
         <span className="hidden leading-tight lg:block">
-          <span className="block text-sm font-medium text-foreground">{db.settings.adminName}</span>
+          <span className="block text-sm font-medium text-foreground">{name}</span>
           <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <ShieldCheck className="size-3 text-gold" /> Programme Administrator
           </span>
@@ -132,8 +114,8 @@ function ProfileMenu() {
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            <span className="block text-sm font-medium text-foreground">{db.settings.adminName}</span>
-            <span className="block text-xs">{db.settings.adminEmail}</span>
+            <span className="block text-sm font-medium text-foreground">{name}</span>
+            <span className="block text-xs">{profile?.email}</span>
             <span className="mt-1 inline-block rounded bg-gold-soft px-1.5 py-0.5 text-[10px] font-semibold text-[#7a5f2c] uppercase">Role: Programme Admin</span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
@@ -141,7 +123,7 @@ function ProfileMenu() {
         <DropdownMenuItem onClick={() => router.push("/settings")}>
           <Settings /> Settings
         </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onClick={logout}>
+        <DropdownMenuItem variant="destructive" onClick={() => void logout()}>
           <LogOut /> Log out
         </DropdownMenuItem>
       </DropdownMenuContent>

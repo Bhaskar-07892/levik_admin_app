@@ -1,25 +1,36 @@
 "use client";
 
-import { DataTable, type Column } from "@/components/data-table/data-table";
+import { DataTable, type Column, type ServerPagination } from "@/components/data-table/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
-import type { ScanRow } from "@/lib/mock-api/queries";
+import { $api } from "@/lib/api/client";
+import type { ScanDto } from "@/lib/api/types";
 import { formatDateTime, formatNumber } from "@/lib/utils/format";
+import { useState } from "react";
 
-export function ScansTable({ rows, showPlumber = true, pageSize = 10 }: { rows: ScanRow[]; showPlumber?: boolean; pageSize?: number }) {
-  const columns: Column<ScanRow>[] = [
-    { id: "id", header: "Scan ref", cell: (r) => <span className="font-mono text-xs">{r.id}</span>, sortValue: (r) => r.id },
+export function ScansTable({
+  rows,
+  showPlumber = true,
+  pagination,
+  loading,
+}: {
+  rows: ScanDto[];
+  showPlumber?: boolean;
+  pagination?: ServerPagination;
+  loading?: boolean;
+}) {
+  const columns: Column<ScanDto>[] = [
+    { id: "id", header: "Scan ref", cell: (r) => <span className="font-mono text-xs">{r.id}</span> },
     ...(showPlumber
       ? [
           {
             id: "plumber",
             header: "Plumber",
-            cell: (r: ScanRow) => (
+            cell: (r: ScanDto) => (
               <div>
-                <p className="font-medium">{r.plumber?.name ?? r.plumberId}</p>
-                <p className="text-xs text-muted-foreground">{r.plumber?.city}</p>
+                <p className="font-medium">{r.plumber.name}</p>
+                <p className="text-xs text-muted-foreground">{r.plumber.city}</p>
               </div>
             ),
-            sortValue: (r: ScanRow) => r.plumber?.name ?? "",
           },
         ]
       : []),
@@ -28,13 +39,12 @@ export function ScansTable({ rows, showPlumber = true, pageSize = 10 }: { rows: 
       header: "Product model",
       cell: (r) => (
         <div>
-          <p className="font-medium">{r.product?.modelCode}</p>
-          <p className="max-w-[180px] truncate text-xs text-muted-foreground">{r.product?.category}</p>
+          <p className="font-medium">{r.product.modelCode}</p>
+          <p className="max-w-[180px] truncate text-xs text-muted-foreground">{r.product.category}</p>
         </div>
       ),
-      sortValue: (r) => r.product?.modelCode ?? "",
     },
-    { id: "date", header: "Scan date", cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.scannedAt)}</span>, sortValue: (r) => r.scannedAt },
+    { id: "date", header: "Scan date", cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.scannedAt)}</span> },
     {
       id: "ref",
       header: "Retailer / invoice",
@@ -53,9 +63,8 @@ export function ScansTable({ rows, showPlumber = true, pageSize = 10 }: { rows: 
       header: "Expected pts",
       align: "right",
       cell: (r) => <span className="font-medium">{formatNumber(r.awardedPoints ?? r.expectedPoints)}</span>,
-      sortValue: (r) => r.expectedPoints,
     },
-    { id: "status", header: "Status", cell: (r) => <StatusBadge status={r.status} />, sortValue: (r) => r.status },
+    { id: "status", header: "Status", cell: (r) => <StatusBadge status={r.status} /> },
   ];
   return (
     <DataTable
@@ -64,9 +73,23 @@ export function ScansTable({ rows, showPlumber = true, pageSize = 10 }: { rows: 
       columns={columns}
       getRowId={(r) => r.id}
       rowHref={(r) => `/scans/${r.id}`}
-      pageSize={pageSize}
-      initialSort={{ id: "date", desc: true }}
+      pagination={pagination}
+      loading={loading}
       emptyTitle="No scans found"
+    />
+  );
+}
+
+/** Scans for one plumber, product or retailer (detail-page tabs), newest first. */
+export function RelatedScans({ filter, showPlumber = true }: { filter: { plumberId?: string; productId?: string; retailerId?: string }; showPlumber?: boolean }) {
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = $api.useQuery("get", "/api/v1/admin/scans", { params: { query: { ...filter, page, pageSize: 10 } } });
+  return (
+    <ScansTable
+      rows={data?.items ?? []}
+      showPlumber={showPlumber}
+      loading={isLoading}
+      pagination={{ page, pageSize: 10, total: data?.total ?? 0, onPageChange: setPage }}
     />
   );
 }

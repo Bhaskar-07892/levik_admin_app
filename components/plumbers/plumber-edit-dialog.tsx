@@ -7,12 +7,12 @@ import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { updatePlumber } from "@/lib/mock-api/services";
+import { api, call } from "@/lib/api/client";
+import type { PlumberDetail } from "@/lib/api/types";
 import { runAction } from "@/lib/utils/run-action";
 import { plumberEditSchema, type PlumberEditInput } from "@/lib/validations";
-import type { Plumber } from "@/types";
 
-const toValues = (p: Plumber): PlumberEditInput => ({
+const toValues = (p: PlumberDetail): PlumberEditInput => ({
   name: p.name,
   mobile: p.mobile,
   email: p.email ?? "",
@@ -23,7 +23,7 @@ const toValues = (p: Plumber): PlumberEditInput => ({
   specialization: p.specialization,
 });
 
-export function PlumberEditDialog({ plumber, open, onOpenChange }: { plumber: Plumber; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function PlumberEditDialog({ plumber, open, onOpenChange }: { plumber: PlumberDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const form = useForm<PlumberEditInput>({ resolver: zodResolver(plumberEditSchema), defaultValues: toValues(plumber) });
   const { errors } = form.formState;
 
@@ -31,9 +31,12 @@ export function PlumberEditDialog({ plumber, open, onOpenChange }: { plumber: Pl
     if (open) form.reset(toValues(plumber));
   }, [open, plumber, form]);
 
-  const submit = form.handleSubmit((values) => {
-    const ok = runAction(() => updatePlumber(plumber.id, values), "Plumber profile updated");
-    if (ok.ok) onOpenChange(false);
+  const submit = form.handleSubmit(async (values) => {
+    const result = await runAction(
+      () => call(api.PATCH("/api/v1/admin/plumbers/{id}", { params: { path: { id: plumber.id } }, body: { ...values, email: values.email || null } })),
+      "Plumber profile updated",
+    );
+    if (result.ok) onOpenChange(false);
   });
 
   return (
@@ -74,7 +77,7 @@ export function PlumberEditDialog({ plumber, open, onOpenChange }: { plumber: Pl
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">Save changes</Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>Save changes</Button>
           </DialogFooter>
         </form>
       </DialogContent>

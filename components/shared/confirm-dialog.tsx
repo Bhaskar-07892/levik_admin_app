@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,11 +28,13 @@ export function ConfirmDialog({
   description: ReactNode;
   confirmLabel?: string;
   destructive?: boolean;
-  onConfirm: () => void;
+  /** May be async; the dialog stays open (and disabled) until it settles. Return false to keep it open. */
+  onConfirm: () => unknown;
   children?: ReactNode;
 }) {
+  const [pending, setPending] = useState(false);
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
       <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -40,12 +42,18 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         {children}
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
-            onClick={() => {
-              onConfirm();
-              onOpenChange(false);
+            disabled={pending}
+            onClick={async () => {
+              setPending(true);
+              try {
+                const result = await onConfirm();
+                if (result !== false && !(typeof result === "object" && result && "ok" in result && !result.ok)) onOpenChange(false);
+              } finally {
+                setPending(false);
+              }
             }}
           >
             {confirmLabel}

@@ -1,23 +1,22 @@
-import { invoiceTotals } from "@/lib/mock-api/rules";
+import type { InvoiceReview, RetailerDetail } from "@/lib/api/types";
 import { formatDate, formatINR } from "@/lib/utils/format";
-import type { Database, Invoice } from "@/types";
 
-/** Sample invoice preview rendered from seeded line items. Not a real tax document. */
-export function InvoiceDocument({ db, invoice }: { db: Database; invoice: Invoice }) {
-  const retailer = db.retailers.find((r) => r.id === invoice.retailerId);
-  const totals = invoiceTotals(invoice);
+/** Preview rendered from the line items the retailer entered. Shown when no document was uploaded. Not a tax document. */
+export function InvoiceDocument({ review, retailer }: { review: InvoiceReview; retailer?: RetailerDetail }) {
+  const { invoice, totals } = review;
   return (
     <div className="relative overflow-hidden rounded-lg border border-border bg-white p-6 font-mono text-[11px] text-slate-700 shadow-inner">
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <span className="-rotate-12 text-5xl font-bold tracking-widest text-slate-200/70 uppercase">Demo copy</span>
+        <span className="-rotate-12 text-5xl font-bold tracking-widest text-slate-200/70 uppercase">Preview</span>
       </div>
       <div className="relative">
         <div className="flex items-start justify-between border-b border-dashed border-slate-300 pb-3">
           <div>
-            <p className="text-sm font-bold text-slate-900">{retailer?.shopName}</p>
+            <p className="text-sm font-bold text-slate-900">{invoice.retailerName}</p>
             <p>{retailer?.address}</p>
             <p>
-              {retailer?.city}, {retailer?.state}
+              {retailer?.city ?? invoice.retailerCity}
+              {retailer ? `, ${retailer.state}` : ""}
             </p>
             <p>GSTIN: {retailer?.gstin ?? "Unregistered"}</p>
           </div>
@@ -38,19 +37,16 @@ export function InvoiceDocument({ db, invoice }: { db: Database; invoice: Invoic
             </tr>
           </thead>
           <tbody>
-            {invoice.lineItems.map((line) => {
-              const product = db.products.find((p) => p.id === line.productId);
-              return (
-                <tr key={line.id}>
-                  <td className="py-1">
-                    {product?.sku} {product?.name}
-                  </td>
-                  <td className="py-1 text-right">{line.quantity}</td>
-                  <td className="py-1 text-right">{formatINR(line.unitPrice)}</td>
-                  <td className="py-1 text-right">{formatINR(line.quantity * line.unitPrice)}</td>
-                </tr>
-              );
-            })}
+            {invoice.lines.map((line) => (
+              <tr key={line.id}>
+                <td className="py-1">
+                  {line.sku} {line.productName}
+                </td>
+                <td className="py-1 text-right">{line.quantity}</td>
+                <td className="py-1 text-right">{formatINR(line.unitPrice)}</td>
+                <td className="py-1 text-right">{formatINR(line.value)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
         <div className="mt-3 ml-auto w-56 space-y-0.5 border-t border-slate-300 pt-2">

@@ -2,53 +2,50 @@
 
 import { ArrowLeft, Ban, CheckCircle2, Coins, Pencil, RotateCcw, XCircle } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { InvoicesTable } from "@/components/invoices/invoices-table";
-import { LedgerTable } from "@/components/ledger/ledger-table";
+import { useState } from "react";
+import { RelatedInvoices } from "@/components/invoices/invoices-table";
+import { RelatedLedger } from "@/components/ledger/ledger-table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
-import { NotFoundCard } from "@/components/shared/not-found-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { PointsAdjustDialog } from "@/components/shared/points-adjust-dialog";
 import { ProgressBar } from "@/components/shared/progress-bar";
+import { QueryBoundary } from "@/components/shared/query-states";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { listInventory, listInvoices, listPointsTransactions } from "@/lib/mock-api/queries";
-import { pointsSummary, retailerAchievement, retailerSales, schemeProgress } from "@/lib/mock-api/rules";
-import { reviewRetailerApplication, setRetailerAccountStatus } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { $api, api, call } from "@/lib/api/client";
+import type { RetailerDetail as Retailer } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatINR, formatNumber, formatPoints } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
 import { RetailerEditDialog } from "./retailer-edit-dialog";
 
 export function RetailerDetail({ id }: { id: string }) {
-  const db = useDb();
-  const retailer = db.retailers.find((r) => r.id === id);
+  const query = $api.useQuery("get", "/api/v1/admin/retailers/{id}", { params: { path: { id } } });
+  return (
+    <QueryBoundary query={query} entity="Retailer" backHref="/retailers" backLabel="Back to retailers">
+      {(retailer) => <RetailerProfile retailer={retailer} />}
+    </QueryBoundary>
+  );
+}
+
+function RetailerProfile({ retailer }: { retailer: Retailer }) {
+  const id = retailer.id;
   const [editOpen, setEditOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
 
-  const invoices = useMemo(() => listInvoices(db).filter((i) => i.retailerId === id), [db, id]);
-  const ledger = useMemo(() => listPointsTransactions(db).filter((t) => t.userId === id), [db, id]);
-  const inventory = useMemo(() => listInventory(db).filter((i) => i.retailerId === id), [db, id]);
-  const schemes = useMemo(
-    () =>
-      db.schemes
-        .filter((s) => s.role === "retailer" && (s.status === "Active" || s.status === "Scheduled"))
-        .map((scheme) => ({ scheme, progress: schemeProgress(db, scheme, id), awarded: scheme.awardedUserIds.includes(id) })),
-    [db, id],
-  );
+  const { data: inventoryPage } = $api.useQuery("get", "/api/v1/admin/inventory", { params: { query: { retailerId: id, pageSize: 100 } } });
+  const { data: schemes = [] } = $api.useQuery("get", "/api/v1/admin/schemes/progress", { params: { query: { userId: id } } });
+  const inventory = inventoryPage?.items ?? [];
 
-  if (!retailer) return <NotFoundCard entity="Retailer" backHref="/retailers" backLabel="Back to retailers" />;
-
-  const points = pointsSummary(db, id);
-  const sales = retailerSales(db, id);
-  const achievement = retailerAchievement(db, retailer);
+  const { points, sales30d: sales, achievementPct: achievement } = retailer;
+  const review = (decision: "Approved" | "Rejected", reason?: string) =>
+    call(api.POST("/api/v1/admin/retailers/{id}/review", { params: { path: { id } }, body: { decision, reason } }));
   const isPending = retailer.verificationStatus === "Pending";
 
   return (
@@ -135,10 +132,10 @@ export function RetailerDetail({ id }: { id: string }) {
       <Tabs defaultValue="overview" className="mt-6">
         <TabsList className="overflow-x-auto">
           <TabsTrigger value="overview">Shop details</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
-          <TabsTrigger value="inventory">Inventory ({inventory.length})</TabsTrigger>
+          <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          <TabsTrigger value="inventory">Inventory ({inventoryPage?.total ?? 0})</TabsTrigger>
           <TabsTrigger value="schemes">Schemes ({schemes.length})</TabsTrigger>
-          <TabsTrigger value="incentives">Incentive history ({ledger.length})</TabsTrigger>
+          <TabsTrigger value="incentives">Incentive history</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
           <SectionCard title="Shop information">
@@ -160,11 +157,11 @@ export function RetailerDetail({ id }: { id: string }) {
         </TabsContent>
         <TabsContent value="invoices" className="mt-4">
           <div className="rounded-xl border border-border bg-card">
-            <InvoicesTable rows={invoices} showRetailer={false} />
+            <RelatedInvoices retailerId={id} />
           </div>
         </TabsContent>
         <TabsContent value="inventory" className="mt-4">
-          <SectionCard title="Retailer-reported stock" description="Mock data reported from the retailer app – not live warehouse stock" bodyClassName="p-0">
+          <SectionCard title="Retailer-reported stock" description="Reported from the retailer app – not live warehouse stock" bodyClassName="p-0">
             {inventory.length === 0 ? (
               <EmptyState title="No stock reported" description="This retailer has not reported any inventory yet." />
             ) : (
@@ -172,7 +169,7 @@ export function RetailerDetail({ id }: { id: string }) {
                 {inventory.map((item) => (
                   <li key={item.id} className="flex items-center justify-between gap-3 px-5 py-3">
                     <div>
-                      <p className="text-sm font-medium">{item.product?.name}</p>
+                      <p className="text-sm font-medium">{item.productName}</p>
                       <p className="text-xs text-muted-foreground">Updated {formatDateTime(item.updatedAt)}</p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -186,13 +183,14 @@ export function RetailerDetail({ id }: { id: string }) {
           </SectionCard>
         </TabsContent>
         <TabsContent value="schemes" className="mt-4">
-          <SectionCard title="Retailer schemes" description="Active and scheduled schemes this shop can participate in" bodyClassName="p-0">
+          <SectionCard title="Retailer schemes" description="Live schemes for retailers and this shop's progress" bodyClassName="p-0">
             {schemes.length === 0 ? (
               <EmptyState title="No active schemes" />
             ) : (
               <ul className="divide-y divide-border">
-                {schemes.map(({ scheme, progress, awarded }) => {
-                  const pct = Math.min(100, Math.round((progress / scheme.targetValue) * 100));
+                {schemes.map((scheme) => {
+                  const { progress, awarded } = scheme;
+                  const pct = Math.min(100, scheme.percent);
                   return (
                     <li key={scheme.id}>
                       <Link href={`/schemes/${scheme.id}`} className="grid gap-2 px-5 py-4 hover:bg-muted/40 md:grid-cols-[1.5fr_1fr] md:items-center">
@@ -225,7 +223,7 @@ export function RetailerDetail({ id }: { id: string }) {
         </TabsContent>
         <TabsContent value="incentives" className="mt-4">
           <div className="rounded-xl border border-border bg-card">
-            <LedgerTable rows={ledger} showUser={false} />
+            <RelatedLedger userId={id} />
           </div>
         </TabsContent>
       </Tabs>
@@ -238,16 +236,16 @@ export function RetailerDetail({ id }: { id: string }) {
         title="Approve retailer application?"
         description={`${retailer.shopName} will be able to submit invoices and join retailer schemes.`}
         confirmLabel="Approve retailer"
-        onConfirm={() => runAction(() => reviewRetailerApplication(retailer.id, "Approved"), `${retailer.shopName} approved`)}
+        onConfirm={() => runAction(() => review("Approved"), `${retailer.shopName} approved`)}
       />
       <ReasonDialog
         open={rejectOpen}
         onOpenChange={setRejectOpen}
         title="Reject retailer application"
-        description="The applicant will be notified with this reason (simulated)."
+        description="The applicant sees this reason in the retailer app."
         confirmLabel="Reject application"
         destructive
-        onSubmit={(reason) => runAction(() => reviewRetailerApplication(retailer.id, "Rejected", reason), "Application rejected").ok}
+        onSubmit={async (reason) => (await runAction(() => review("Rejected", reason), "Application rejected")).ok}
       />
       <ReasonDialog
         open={accountOpen}
@@ -256,10 +254,18 @@ export function RetailerDetail({ id }: { id: string }) {
         description={retailer.accountStatus === "Active" ? "Suspended retailers cannot have invoices approved." : "The retailer will be able to submit and earn again."}
         confirmLabel={retailer.accountStatus === "Active" ? "Suspend" : "Reactivate"}
         destructive={retailer.accountStatus === "Active"}
-        onSubmit={(reason) =>
-          runAction(
-            () => setRetailerAccountStatus(retailer.id, retailer.accountStatus === "Active" ? "Suspended" : "Active", reason),
-            retailer.accountStatus === "Active" ? "Retailer suspended" : "Retailer reactivated",
+        onSubmit={async (reason) =>
+          (
+            await runAction(
+              () =>
+                call(
+                  api.POST("/api/v1/admin/retailers/{id}/account-status", {
+                    params: { path: { id } },
+                    body: { status: retailer.accountStatus === "Active" ? "Suspended" : "Active", reason },
+                  }),
+                ),
+              retailer.accountStatus === "Active" ? "Retailer suspended" : "Retailer reactivated",
+            )
           ).ok
         }
       />

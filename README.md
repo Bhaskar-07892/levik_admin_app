@@ -1,19 +1,28 @@
-# Levik Admin — client demo MVP
+# Levik Admin
 
 The admin portal for the **Levik Rewards Programme**. Levik employees use it to manage plumbers and retailers, verify product scans and sales invoices, credit points, run schemes and fulfil reward redemptions.
 
-This is a **demo build**. All data is mock data. It is seeded into the browser's `localStorage` and changed through a typed mock transaction service. There is no backend, database, real authentication or third-party integration.
+All data comes from the **[Levik API](https://github.com/shubhamjoshi99899/levik_-backend)** (NestJS + PostgreSQL). The portal holds no programme data of its own. It signs in with a real admin account, and every list, approval and report is a call to the API.
 
 ## Quick start
 
-Requires Node.js 20.9+ (tested on Node 25).
+Requires Node.js 20.9+ (tested on Node 25) and a running Levik API.
+
+1. Start the API (see its README). It runs on `http://localhost:4100` and seeds the demo data with `npm run db:seed`.
+2. Install and start the portal:
 
 ```bash
+cp .env.example .env.local
 npm install
-npm run dev
+npm run dev -- -p 3020
 ```
 
-Then open http://localhost:3000. You are redirected to the login page.
+Then open http://localhost:3020. You are redirected to the login page.
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:4100` | API origin. The API must list the portal's origin in `CORS_ORIGINS`. |
+| `NEXT_PUBLIC_SHOW_DEMO_LOGIN` | `true` | Shows the seeded demo account on the login page. Set it to `false` for real deployments. |
 
 ### Demo login
 
@@ -22,7 +31,7 @@ Then open http://localhost:3000. You are redirected to the login page.
 | Email    | `admin@levik.demo` |
 | Password | `LevikDemo@123`    |
 
-The login page also has a **Fill demo credentials** button. This is a simulated session stored in `localStorage`. It is **not** production-secure authentication.
+This account is seeded by the API for local and demo environments only.
 
 ## Scripts
 
@@ -33,19 +42,17 @@ The login page also has a **Fill demo credentials** button. This is a simulated 
 | `npm start`            | Serve the production build                                 |
 | `npm run typecheck`    | Strict TypeScript check                                    |
 | `npm run lint`         | ESLint (Next.js core-web-vitals + TypeScript rules)        |
-| `npm run verify:rules` | Runs the business-rule integrity checks against the mock service in Node |
-| `npm run db:test`      | Applies the Supabase migrations + seed to a throwaway local Postgres 17 and runs the database tests |
-| `npm run db:seed:generate` | Regenerates `supabase/seed.sql` from the TypeScript demo seed |
+| `npm run api:types`    | Regenerates `lib/api/schema.d.ts` from the running API's OpenAPI document |
+| `npm run db:test`      | (Supabase prototype) runs the database tests against a throwaway Postgres |
+| `npm run db:seed:generate` | (Supabase prototype) regenerates `supabase/seed.sql` from the TypeScript demo seed |
 
 ## Resetting demo data
 
-Go to **Settings → Demo data → Reset Demo Data** and confirm. This discards every change made in this browser and restores the original seed. You stay signed in.
-
-The seed has a version number (`DEMO_DATA_VERSION` in `lib/mock-data/seed.ts`). When you bump it, browsers holding older data are re-seeded automatically on their next load.
+Reset the data on the API side by running `npm run db:reset` in `levik-api`. This restores the original seed for every user of that API. Sign in again afterwards: the reset also clears sessions.
 
 ## Client demo script
 
-All four scenarios work on fresh seed data. Reset the demo data before presenting.
+All four scenarios work on fresh seed data. Reset the API's demo data before presenting.
 
 **A. Plumber earns points**
 
@@ -56,13 +63,14 @@ All four scenarios work on fresh seed data. Reset the demo data before presentin
 5. Open the plumber profile: the available balance goes from 4,080 to 5,430.
 6. Open **Points Ledger**: the new *Product Scan* and *Scheme Bonus* credits are there.
 7. Back on the **Dashboard**, *Points issued* and *Product scans pending* have updated.
+8. Open **Product Catalogue** → *One-Piece Western WC 1012* → **QR labels** → **Generate labels**. Each unit gets its own signed QR serial. Download the A4 label sheet (PDF) or the CSV for a label printer.
 
 Also try **SCN-5015**. Approval is blocked because the serial was already credited. Reject it with a reason.
 
 **B. Retailer earns incentives**
 
 1. Go to **Invoice Management** → open **INV-3009** (Sharma Sanitary Store).
-2. Review the line items, eligibility, the 711-point incentive and the mock invoice document. This approval also completes the *Festive Retail Booster* target.
+2. Review the line items, eligibility, the 711-point incentive and the invoice preview. This approval also completes the *Festive Retail Booster* target.
 3. Click **Approve**. The retailer receives 711 pts plus a 5,000 pts scheme bonus.
 4. Open the retailer profile: the incentive balance, 30-day sales and target achievement have all updated.
 5. In the **Points Ledger**, filter *Role = Retailers* to see the new entries.
@@ -87,14 +95,14 @@ Also try **RDM-7006**. The refrigerator request is blocked for insufficient bala
 
 ## Features
 
-- **Demo login**: form validation, password visibility toggle, invalid-credential feedback, protected admin routes, and logout (recorded in the audit log).
+- **Sign-in**: API authentication with form validation, password visibility toggle, invalid-credential feedback, protected admin routes, silent token refresh, and logout (which revokes the refresh token).
 - **Executive dashboard**:
   - 8 KPIs, sales trend, scan trend by status, and points earned vs redeemed, all derived from the records.
   - Scheme performance, recent scans, pending invoice queue, recent redemptions and quick actions.
   - Period filter (7D / 30D / 90D / All).
 - **Plumbers**:
   - Searchable, filterable, paginated directory.
-  - Detail page with profile edit, KYC verify/reject (simulated Aadhaar), suspend/reactivate with a reason, manual points adjustment, and scan, ledger and redemption history.
+  - Detail page with profile edit, KYC verify/reject (masked Aadhaar reference), suspend/reactivate with a reason, manual points adjustment, and scan, ledger and redemption history.
 - **Retailers**:
   - Directory with 30-day sales and target achievement.
   - Approve or reject pending applications, edit shop details, suspend/reactivate.
@@ -102,16 +110,18 @@ Also try **RDM-7006**. The refrigerator request is blocked for insufficient bala
 - **Product catalogue**:
   - 21 models seeded from the Levik Bathware catalogue, with real model codes, dimensions and features, and photos extracted from the PDF.
   - Grid and table views, category and status filters, add and edit (React Hook Form + Zod), activate/deactivate, and a detail page.
+  - **QR labels**: generate batches of unique, signed serials per product, and download print-ready A4 PDF sheets or a CSV. Each batch shows how many labels are available, claimed and void.
 - **Product scan verification**:
   - Tabs: All, Pending, Approved, Rejected, Flagged.
-  - Deterministic verification checks: catalogue code, reward eligibility, KYC, account status, proof of sale from an approved retailer, duplicate serial, and whether the invoice lists the model.
+  - Verification checks evaluated by the API: genuine Levik label, catalogue code, reward eligibility, KYC, account status, proof of sale from an approved retailer, duplicate serial, whether the invoice lists the model, and QR signature.
+  - The installation photo is shown when the plumber uploaded one.
   - Approve, reject (reason required) or flag.
 - **Invoice management**:
   - Line-item review with per-line eligibility and the points calculation shown before approval.
-  - Mock invoice document, duplicate-number check.
+  - Uploaded invoice document (or a preview generated from the line items), and the duplicate-number check.
   - Approve, reject, request more information, start review.
 - **Rewards catalogue**: add/edit, activate/deactivate, stock adjustment with a reason (stock never goes negative), and redemption history per reward.
-- **Redemptions**: Requested → Approved → Processing → Dispatched → Delivered. Cancelled and Failed refund once and restore stock. Courier, tracking and voucher references are mock values.
+- **Redemptions**: Requested → Approved → Processing → Dispatched → Delivered. Cancelled and Failed refund once and restore stock. Courier, tracking and voucher references are entered by the admin.
 - **Schemes**:
   - Multi-step create and edit form, draft/scheduled/active/paused/completed lifecycle.
   - Eligible participants with progress against targets, and a one-time bonus when a qualifying approval crosses the target.
@@ -120,7 +130,7 @@ Also try **RDM-7006**. The refrigerator request is blocked for insufficient bala
 - **Reports**: verified sales, scans by status, points issued vs redeemed, top retailers, top-scanned products and scheme performance, each with a period filter and CSV export of the filtered data.
 - **Support tickets**: status workflow and internal notes.
 - **Audit logs**: append-only, filterable, with CSV export.
-- **Settings**: admin display name, programme name, retailer incentive rate, low-stock threshold, notification preferences, and Reset Demo Data.
+- **Settings**: admin display name, programme name, retailer incentive rate, low-stock threshold, daily scan limit per plumber, notification preferences, and API connection status.
 - **Shell**:
   - Collapsible sidebar sections with pending-count badges, and breadcrumbs.
   - Global search (press `/`) across plumbers, retailers, products, scans, invoices, redemptions and schemes.
@@ -130,31 +140,46 @@ Also try **RDM-7006**. The refrigerator request is blocked for insufficient bala
 
 ```
 app/
-  (auth)/login/            demo sign-in
+  (auth)/login/            sign-in against POST /auth/admin/login
   (admin)/…                one route per module; page.tsx files are Server Components
-                           that render a client view (data lives in the browser)
+                           that render a client view (data is fetched with the admin's token)
 components/
-  layout/                  shell: sidebar, top bar, global search, breadcrumbs
-  data-table/              reusable sortable/paginated table + toolbar
-  shared/                  badges, KPI cards, dialogs (confirm / reason), timeline, …
+  layout/                  shell: session guard, sidebar badges, top bar, global search, breadcrumbs
+  data-table/              table with server pagination/sorting (and local mode for small lists)
+  shared/                  badges, KPI cards, dialogs, timeline, query states, uploaded-file viewer
   forms/ charts/ ui/       form helpers, Recharts wrapper, shadcn/ui (Base UI) primitives
-  <feature>/               feature views (plumbers, scans, invoices, …)
+  <feature>/               feature views (plumbers, scans, invoices, products + QR labels, …)
 lib/
-  mock-data/               typed, deterministic seed (+ catalogue products)
-  mock-api/
-    store.ts               in-memory snapshot + atomic commit + localStorage persistence
-    rules.ts               pure business rules (checks, points, scheme progress, balances)
-    queries.ts             read services: listPlumbers(), getDashboardMetrics(), …
-    services.ts            transaction service: approveScan(), approveInvoice(), …
-  storage/                 browser-storage wrapper + simulated session
-  validations/             Zod schemas
-types/                     domain models (Plumber, Retailer, Product, ProductScan, …)
-scripts/verify-rules.ts    business-rule integrity checks
+  api/
+    schema.d.ts            generated from the API's OpenAPI document (npm run api:types)
+    client.ts              openapi-fetch client, typed TanStack Query hooks ($api), file downloads
+    auth.ts                admin session: in-memory access token, rotating refresh token
+    errors.ts              ApiError (the API's error envelope) and user-facing messages
+    hooks.ts               shared queries (settings, profile, notifications, status counts, options)
+    types.ts               aliases for the generated response types
+  hooks/                   usePagedList (page, debounced search, filters, sort), useDebouncedValue
+  utils/                   formatting, periods/chart buckets, runAction (mutation + toast + refresh)
+  validations/             Zod schemas for forms
+  mock-data/               demo seed, used only by the Supabase prototype seed generator
+types/                     shared enums and labels (statuses, categories)
 ```
+
+### How the portal talks to the API
+
+- **Types are generated, not hand-written.** `lib/api/schema.d.ts` comes from the API's OpenAPI document. Every request and response is checked against it at compile time.
+- **Queries and mutations:**
+  - Reads use `$api.useQuery(...)` (TanStack Query) with the API's own pagination, filters and sorting.
+  - Writes go through `runAction`, which calls the API, shows a toast and refetches the queries on screen.
+  - An approval changes balances, queues, dashboards and scheme progress at once, so everything visible refreshes.
+- **Sessions:**
+  - The access token (15 minutes) is kept in memory only.
+  - The rotating refresh token is kept in localStorage, so a reload keeps you signed in.
+  - A 401 triggers one silent refresh and a retry. Refreshes are serialised across tabs with the Web Locks API, so two tabs never present the same refresh token, which the API would treat as theft.
+- **Files:** uploads (scan photos, invoice documents), label PDFs and CSV exports need the bearer token, so they are fetched as blobs.
 
 ### Data integrity rules
 
-Every mutation is a single `commit()`. It applies the change to a copy of the database, updates every affected record (status, ledger, balances, stock, scheme awards, audit) and then swaps the copy in. Page components never change points themselves.
+The portal enforces none of these itself. It shows the API's verification checks and calls the API's endpoints, and the API enforces every rule inside database transactions (see the API README):
 
 1. **Balances are never stored.** Every plumber and retailer balance is derived from the points ledger.
 2. **Scans:** only approved scans credit points, each scan at most once (`ledgerTxnId` guard), and rejected scans credit nothing.
@@ -167,7 +192,7 @@ Every mutation is a single `commit()`. It applies the change to a copy of the da
 6. **Manual adjustments** require a reason, cannot overdraw a balance, and are audited.
 7. **Scheme bonuses** are credited once per participant, when an approval inside the scheme window pushes them over the target.
 
-`npm run verify:rules` checks all of these.
+The API's end-to-end test suite checks all of these, including concurrent approvals.
 
 ### Sample programme rules (demo values, not official Levik rules)
 
@@ -178,17 +203,13 @@ Every mutation is a single `commit()`. It applies the change to a copy of the da
 
 ## Known limitations
 
-- **No backend.** Data lives in one browser's `localStorage`, so it is not shared across browsers or devices. Browser storage gives no concurrency or financial-grade transaction guarantees.
-- **Demo authentication only.** There is a single admin role and no permission management.
-- **No real integrations.** Aadhaar/KYC, SMS/email, OCR, ERP, courier and voucher providers are all simulated, and invoice documents are generated previews.
+- **Single admin role.** There is no permission management yet.
+- **External integrations are recorded manually.** Aadhaar/KYC, courier and voucher providers are not integrated. Admins enter references by hand. If no invoice document was uploaded, a preview is generated from the line items.
 - **Sales window.** "Sales · 30 days" uses a rolling 30-day window, not calendar months.
 - **Scheme bonuses are not retroactive.** They are evaluated when a qualifying scan or invoice is approved. Activating a scheme does not award bonuses retroactively.
-- **Next.js Instant Navigation validation is limited to explicit opt-ins** (`next.config.ts`). Admin pages render client-side from browser storage behind a skeleton.
+- **Refresh token storage.** The refresh token is kept in localStorage. Moving it to an httpOnly cookie, behind a same-site API or BFF, would harden it against XSS.
+- **Next.js Instant Navigation validation is limited to explicit opt-ins** (`next.config.ts`). Admin pages render client-side behind a skeleton.
 
-## Backend (Supabase)
+## Supabase prototype
 
-The pilot backend lives in [`supabase/`](supabase/README.md). It contains the Postgres schema, business-rule functions, row-level security, a seed generated from the demo data, and a database test suite (`npm run db:test`). The admin UI is not yet wired to it: it still runs on the localStorage mock.
-
-## Moving to production
-
-Swap the bodies in `lib/mock-api/services.ts` and `queries.ts` for API calls and keep the signatures, and replace `lib/storage/session.ts` with a real auth provider. The ledger-derived balances and single-transaction approvals should move server-side into database transactions.
+[`supabase/`](supabase/README.md) holds an earlier pilot backend: a Postgres schema with RLS and its own tests. The NestJS API replaces it, and the portal does not use it.

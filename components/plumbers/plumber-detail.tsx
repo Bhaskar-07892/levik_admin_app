@@ -2,46 +2,46 @@
 
 import { ArrowLeft, BadgeCheck, Ban, Coins, Pencil, RotateCcw, ShieldX, UserCheck } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { LedgerTable } from "@/components/ledger/ledger-table";
-import { RedemptionsTable } from "@/components/redemptions/redemptions-table";
-import { ScansTable } from "@/components/scans/scans-table";
+import { useState } from "react";
+import { RelatedLedger } from "@/components/ledger/ledger-table";
+import { RelatedRedemptions } from "@/components/redemptions/redemptions-table";
+import { RelatedScans } from "@/components/scans/scans-table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { NotFoundCard } from "@/components/shared/not-found-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { PointsAdjustDialog } from "@/components/shared/points-adjust-dialog";
+import { QueryBoundary } from "@/components/shared/query-states";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { listPointsTransactions, listRedemptions, listScans } from "@/lib/mock-api/queries";
-import { findRetailer, pointsSummary } from "@/lib/mock-api/rules";
-import { setPlumberAccountStatus, setPlumberVerification } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { $api, api, call } from "@/lib/api/client";
+import type { PlumberDetail as Plumber } from "@/lib/api/types";
 import { formatDate, formatNumber } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
 import type { AccountStatus } from "@/types";
 import { PlumberEditDialog } from "./plumber-edit-dialog";
 
 export function PlumberDetail({ id }: { id: string }) {
-  const db = useDb();
-  const plumber = db.plumbers.find((p) => p.id === id);
+  const query = $api.useQuery("get", "/api/v1/admin/plumbers/{id}", { params: { path: { id } } });
+  return (
+    <QueryBoundary query={query} entity="Plumber" backHref="/plumbers" backLabel="Back to plumbers">
+      {(plumber) => <PlumberProfile plumber={plumber} />}
+    </QueryBoundary>
+  );
+}
+
+function PlumberProfile({ plumber }: { plumber: Plumber }) {
   const [editOpen, setEditOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [accountTarget, setAccountTarget] = useState<AccountStatus | null>(null);
 
-  const scans = useMemo(() => listScans(db).filter((s) => s.plumberId === id), [db, id]);
-  const ledger = useMemo(() => listPointsTransactions(db).filter((t) => t.userId === id), [db, id]);
-  const redemptions = useMemo(() => listRedemptions(db).filter((r) => r.userId === id), [db, id]);
-
-  if (!plumber) return <NotFoundCard entity="Plumber" backHref="/plumbers" backLabel="Back to plumbers" />;
-
-  const points = pointsSummary(db, id);
-  const preferred = findRetailer(db, plumber.preferredRetailerId);
-  const approvedScans = scans.filter((s) => s.status === "Approved").length;
+  const { points, scanCounts } = plumber;
+  const preferred = plumber.preferredRetailer;
+  const setVerification = (status: "Verified" | "Rejected", note: string) =>
+    call(api.POST("/api/v1/admin/plumbers/{id}/verification", { params: { path: { id: plumber.id } }, body: { status, note } }));
 
   return (
     <div>
@@ -93,7 +93,7 @@ export function PlumberDetail({ id }: { id: string }) {
           { label: "Available points", value: formatNumber(points.available), strong: true },
           { label: "Lifetime earned", value: formatNumber(points.lifetime) },
           { label: "Redeemed (net)", value: formatNumber(points.redeemed) },
-          { label: "Approved scans", value: `${approvedScans} of ${scans.length}` },
+          { label: "Approved scans", value: `${scanCounts.approved} of ${scanCounts.total}` },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border border-border bg-card p-4">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{stat.label}</p>
@@ -105,9 +105,9 @@ export function PlumberDetail({ id }: { id: string }) {
       <Tabs defaultValue="overview" className="mt-6">
         <TabsList className="overflow-x-auto">
           <TabsTrigger value="overview">Profile</TabsTrigger>
-          <TabsTrigger value="scans">Scan history ({scans.length})</TabsTrigger>
-          <TabsTrigger value="ledger">Points ledger ({ledger.length})</TabsTrigger>
-          <TabsTrigger value="redemptions">Redemptions ({redemptions.length})</TabsTrigger>
+          <TabsTrigger value="scans">Scan history ({scanCounts.total})</TabsTrigger>
+          <TabsTrigger value="ledger">Points ledger</TabsTrigger>
+          <TabsTrigger value="redemptions">Redemptions</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
           <div className="grid gap-6 lg:grid-cols-3">
@@ -134,12 +134,12 @@ export function PlumberDetail({ id }: { id: string }) {
                 ]}
               />
             </SectionCard>
-            <SectionCard title="KYC verification" description="Simulated Aadhaar check – no real identity data is stored">
+            <SectionCard title="KYC verification" description="Aadhaar reference is stored masked; only the last 4 digits are kept">
               <DetailGrid
                 columns={1}
                 items={[
                   { label: "Status", value: <StatusBadge status={plumber.verificationStatus} /> },
-                  { label: "Aadhaar reference", value: <span className="font-mono">{plumber.aadhaarMasked}</span> },
+                  { label: "Aadhaar reference", value: plumber.aadhaarMasked ? <span className="font-mono">{plumber.aadhaarMasked}</span> : "Not submitted" },
                   { label: "Reviewer note", value: plumber.verificationNote ?? "—" },
                 ]}
               />
@@ -153,17 +153,17 @@ export function PlumberDetail({ id }: { id: string }) {
         </TabsContent>
         <TabsContent value="scans" className="mt-4">
           <div className="rounded-xl border border-border bg-card">
-            <ScansTable rows={scans} showPlumber={false} />
+            <RelatedScans filter={{ plumberId: plumber.id }} showPlumber={false} />
           </div>
         </TabsContent>
         <TabsContent value="ledger" className="mt-4">
           <div className="rounded-xl border border-border bg-card">
-            <LedgerTable rows={ledger} showUser={false} />
+            <RelatedLedger userId={plumber.id} />
           </div>
         </TabsContent>
         <TabsContent value="redemptions" className="mt-4">
           <div className="rounded-xl border border-border bg-card">
-            <RedemptionsTable rows={redemptions} showUser={false} />
+            <RelatedRedemptions filter={{ userId: plumber.id }} showUser={false} />
           </div>
         </TabsContent>
       </Tabs>
@@ -174,9 +174,9 @@ export function PlumberDetail({ id }: { id: string }) {
         open={verifyOpen}
         onOpenChange={setVerifyOpen}
         title="Mark KYC as verified?"
-        description={`${plumber.name} will be able to earn points on approved scans. This is a simulated verification.`}
+        description={`${plumber.name} will be able to earn points on approved scans. Confirm you have checked their Aadhaar document.`}
         confirmLabel="Verify plumber"
-        onConfirm={() => runAction(() => setPlumberVerification(plumber.id, "Verified", "KYC verified by admin (simulated)"), `${plumber.name} marked as verified`)}
+        onConfirm={() => runAction(() => setVerification("Verified", "KYC documents checked by admin"), `${plumber.name} marked as verified`)}
       />
       <ReasonDialog
         open={rejectOpen}
@@ -185,7 +185,7 @@ export function PlumberDetail({ id }: { id: string }) {
         description="The plumber will not be able to earn points until re-verified."
         confirmLabel="Reject KYC"
         destructive
-        onSubmit={(reason) => runAction(() => setPlumberVerification(plumber.id, "Rejected", reason), "KYC verification rejected").ok}
+        onSubmit={async (reason) => (await runAction(() => setVerification("Rejected", reason), "KYC verification rejected")).ok}
       />
       <ReasonDialog
         open={accountTarget !== null}
@@ -198,8 +198,13 @@ export function PlumberDetail({ id }: { id: string }) {
         }
         confirmLabel={accountTarget === "Suspended" ? "Suspend account" : "Reactivate account"}
         destructive={accountTarget === "Suspended"}
-        onSubmit={(reason) =>
-          runAction(() => setPlumberAccountStatus(plumber.id, accountTarget ?? "Active", reason), `Account ${accountTarget === "Suspended" ? "suspended" : "reactivated"}`).ok
+        onSubmit={async (reason) =>
+          (
+            await runAction(
+              () => call(api.POST("/api/v1/admin/plumbers/{id}/account-status", { params: { path: { id: plumber.id } }, body: { status: accountTarget ?? "Active", reason } })),
+              `Account ${accountTarget === "Suspended" ? "suspended" : "reactivated"}`,
+            )
+          ).ok
         }
       />
     </div>

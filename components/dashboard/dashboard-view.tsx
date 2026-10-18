@@ -11,8 +11,9 @@ import {
   Store,
   Users,
 } from "lucide-react";
+import { keepPreviousData } from "@tanstack/react-query";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { CHART_COLORS, TrendChart } from "@/components/charts/trend-chart";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -21,49 +22,71 @@ import { ProgressBar } from "@/components/shared/progress-bar";
 import { SectionCard } from "@/components/shared/section-card";
 import { RoleBadge, StatusBadge } from "@/components/shared/status-badge";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  getDashboardMetrics,
-  listInvoices,
-  listRedemptions,
-  listScans,
-  PERIOD_LABELS,
-  type Period,
-} from "@/lib/mock-api/queries";
-import { isSchemeLive, schemeParticipants } from "@/lib/mock-api/rules";
-import { useDb } from "@/lib/mock-api/store";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorCard } from "@/components/shared/query-states";
+import { $api } from "@/lib/api/client";
+import { useSettings } from "@/lib/api/hooks";
+import { bucketLabel, PERIOD_LABELS, type Period } from "@/lib/utils/period";
 import { cn } from "@/lib/utils";
 import { formatCompactINR, formatDate, formatINR, formatNumber, formatPoints } from "@/lib/utils/format";
 
-export function DashboardView() {
-  const db = useDb();
-  const [period, setPeriod] = useState<Period>("30d");
-  const metrics = useMemo(() => getDashboardMetrics(db, period), [db, period]);
-  const { kpis } = metrics;
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-72 rounded-xl" />
+    </div>
+  );
+}
 
-  const recentScans = useMemo(() => listScans(db).slice(0, 5), [db]);
-  const pendingInvoices = useMemo(
-    () => listInvoices(db).filter((i) => i.status === "Submitted" || i.status === "Under Review").slice(0, 5),
-    [db],
-  );
-  const recentRedemptions = useMemo(() => listRedemptions(db).slice(0, 5), [db]);
-  const liveSchemes = useMemo(
-    () =>
-      db.schemes
-        .filter((s) => isSchemeLive(s) || s.status === "Scheduled")
-        .map((scheme) => {
-          const participants = schemeParticipants(db, scheme);
-          const avg = participants.length ? Math.round(participants.reduce((s, p) => s + p.percent, 0) / participants.length) : 0;
-          const leader = participants[0];
-          return { scheme, participants, avg, leader, achievers: scheme.awardedUserIds.length };
-        }),
-    [db],
-  );
+export function DashboardView() {
+  const [period, setPeriod] = useState<Period>("30d");
+  const { data: settings } = useSettings();
+  const dashboard = $api.useQuery("get", "/api/v1/admin/dashboard", { params: { query: { period } } }, { placeholderData: keepPreviousData });
+  const { data: scansPage } = $api.useQuery("get", "/api/v1/admin/scans", { params: { query: { pageSize: 5 } } });
+  const { data: submitted } = $api.useQuery("get", "/api/v1/admin/invoices", { params: { query: { status: "Submitted", pageSize: 5 } } });
+  const { data: underReview } = $api.useQuery("get", "/api/v1/admin/invoices", { params: { query: { status: "Under Review", pageSize: 5 } } });
+  const { data: redemptionsPage } = $api.useQuery("get", "/api/v1/admin/redemptions", { params: { query: { pageSize: 5 } } });
+  const { data: active } = $api.useQuery("get", "/api/v1/admin/schemes", { params: { query: { status: "Active", pageSize: 10 } } });
+  const { data: scheduled } = $api.useQuery("get", "/api/v1/admin/schemes", { params: { query: { status: "Scheduled", pageSize: 10 } } });
+
+  // Errors are ApiError instances thrown by the client middleware (the spec declares no error bodies, so the type says never).
+  const loadError: unknown = dashboard.error;
+  if (loadError) return <ErrorCard error={loadError} onRetry={() => void dashboard.refetch()} />;
+  if (!dashboard.data) return <DashboardSkeleton />;
+
+  const { kpis, bucket } = dashboard.data;
+  const metrics = {
+    salesTrend: dashboard.data.salesTrend.map((p) => ({ ...p, label: bucketLabel(p.bucket, bucket) })),
+    scanTrend: dashboard.data.scanTrend.map((p) => ({
+      label: bucketLabel(p.bucket, bucket),
+      Approved: p.approved,
+      Pending: p.pending,
+      Flagged: p.flagged,
+      Rejected: p.rejected,
+    })),
+    pointsTrend: dashboard.data.pointsTrend.map((p) => ({ ...p, label: bucketLabel(p.bucket, bucket) })),
+  };
+  const recentScans = scansPage?.items ?? [];
+  const pendingInvoices = [...(submitted?.items ?? []), ...(underReview?.items ?? [])].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)).slice(0, 5);
+  const recentRedemptions = redemptionsPage?.items ?? [];
+  const liveSchemes = [...(active?.items ?? []), ...(scheduled?.items ?? [])].map((scheme) => ({
+    scheme,
+    participants: scheme.summary.participants,
+    avg: scheme.summary.averagePercent,
+    achievers: scheme.summary.achievers,
+    bonus: scheme.summary.bonusPointsIssued,
+  }));
 
   return (
     <div>
       <PageHeader
         title="Programme overview"
-        description={`Live view of the ${db.settings.programmeName}. Figures are calculated from the current demo records.`}
+        description={`Live view of the ${settings?.programmeName ?? "Levik Rewards Programme"}. Figures come straight from the programme database.`}
         actions={<PeriodFilter value={period} onChange={setPeriod} />}
       />
 
@@ -168,7 +191,7 @@ export function DashboardView() {
           {liveSchemes.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-muted-foreground">No live or scheduled schemes.</p>
           ) : (
-            liveSchemes.map(({ scheme, participants, avg, leader, achievers }) => (
+            liveSchemes.map(({ scheme, participants, avg, achievers, bonus }) => (
               <Link key={scheme.id} href={`/schemes/${scheme.id}`} className="grid gap-3 px-5 py-4 hover:bg-muted/40 md:grid-cols-[1.4fr_1fr_1fr] md:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -190,13 +213,9 @@ export function DashboardView() {
                   <ProgressBar value={avg} className="mt-1.5" />
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{participants.length}</span> participants ·{" "}
+                  <span className="font-medium text-foreground">{participants}</span> participants ·{" "}
                   <span className="font-medium text-foreground">{achievers}</span> achieved
-                  {leader ? (
-                    <span className="block truncate">
-                      Leader: {leader.name} ({leader.percent}%)
-                    </span>
-                  ) : null}
+                  <span className="block truncate">{formatPoints(bonus)} bonus issued</span>
                 </div>
               </Link>
             ))
@@ -215,9 +234,9 @@ export function DashboardView() {
               <li key={scan.id}>
                 <Link href={`/scans/${scan.id}`} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-muted/40">
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{scan.plumber?.name}</span>
+                    <span className="block truncate text-sm font-medium">{scan.plumber.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {scan.product?.modelCode} · {formatDate(scan.scannedAt)}
+                      {scan.product.modelCode} · {formatDate(scan.scannedAt)}
                     </span>
                   </span>
                   <StatusBadge status={scan.status} />
@@ -239,7 +258,7 @@ export function DashboardView() {
                 <li key={invoice.id}>
                   <Link href={`/invoices/${invoice.id}`} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-muted/40">
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{invoice.retailer?.shopName}</span>
+                      <span className="block truncate text-sm font-medium">{invoice.retailerName}</span>
                       <span className="block truncate text-xs text-muted-foreground">
                         {invoice.invoiceNumber} · {formatINR(invoice.amount)}
                       </span>
@@ -261,7 +280,7 @@ export function DashboardView() {
               <li key={r.id}>
                 <Link href={`/redemptions/${r.id}`} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-muted/40">
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{r.reward?.name}</span>
+                    <span className="block truncate text-sm font-medium">{r.reward.name}</span>
                     <span className={cn("block truncate text-xs text-muted-foreground")}>
                       {r.userName} · {formatPoints(r.pointsCost)}
                     </span>

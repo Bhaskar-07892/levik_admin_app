@@ -5,50 +5,42 @@ import Link from "next/link";
 import { useState } from "react";
 import { ChecksList } from "@/components/shared/checks-list";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { NotFoundCard } from "@/components/shared/not-found-card";
 import { PageHeader } from "@/components/shared/page-header";
+import { QueryBoundary } from "@/components/shared/query-states";
 import { ProductThumb } from "@/components/shared/product-thumb";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { SchemeImpactList } from "@/components/shared/scheme-impact-list";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Timeline } from "@/components/shared/timeline";
+import { UploadedFile } from "@/components/shared/uploaded-file";
 import { Button } from "@/components/ui/button";
-import {
-  findPlumber,
-  findProduct,
-  findRetailer,
-  hasBlockingFailure,
-  pointsSummary,
-  scanChecks,
-  scanPoints,
-  scanSchemeImpacts,
-} from "@/lib/mock-api/rules";
-import { approveScan, flagScan, rejectScan } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { $api, api, call } from "@/lib/api/client";
+import type { ScanReview } from "@/lib/api/types";
 import { formatDateTime, formatNumber, formatPoints } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
 
 export function ScanDetail({ id }: { id: string }) {
-  const db = useDb();
-  const scan = db.scans.find((s) => s.id === id);
+  const query = $api.useQuery("get", "/api/v1/admin/scans/{id}", { params: { path: { id } } });
+  return (
+    <QueryBoundary query={query} entity="Scan" backHref="/scans" backLabel="Back to scans">
+      {(review) => <ScanReviewPage review={review} />}
+    </QueryBoundary>
+  );
+}
+
+function ScanReviewPage({ review }: { review: ScanReview }) {
+  const { scan, checks, pointsCalculation, schemeImpacts: impacts, linkedInvoice, plumberPoints, timeline } = review;
+  const { plumber, product, retailer } = scan;
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
 
-  if (!scan) return <NotFoundCard entity="Scan" backHref="/scans" backLabel="Back to scans" />;
-
-  const plumber = findPlumber(db, scan.plumberId);
-  const product = findProduct(db, scan.productId);
-  const retailer = findRetailer(db, scan.retailerId);
-  const checks = scanChecks(db, scan);
-  const blocked = hasBlockingFailure(checks);
-  const points = scanPoints(db, scan);
-  const impacts = scanSchemeImpacts(db, scan);
-  const balance = pointsSummary(db, scan.plumberId).available;
-  const linkedInvoice = scan.invoiceNumber ? db.invoices.find((i) => i.invoiceNumber === scan.invoiceNumber && i.retailerId === scan.retailerId) : undefined;
+  const blocked = checks.some((c) => c.blocking && !c.passed);
+  const points = pointsCalculation.pointsOnApproval;
+  const balance = plumberPoints.available;
   const decidable = scan.status === "Pending" || scan.status === "Flagged";
-  const bonus = impacts.filter((i) => i.willAward).reduce((s, i) => s + i.scheme.incentivePoints, 0);
+  const bonus = pointsCalculation.schemeBonusUnlocked;
 
   return (
     <div>
@@ -81,7 +73,7 @@ export function ScanDetail({ id }: { id: string }) {
       {scan.status === "Approved" ? (
         <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-success">
           Approved by {scan.reviewedBy} on {formatDateTime(scan.reviewedAt)}. {formatPoints(scan.awardedPoints ?? 0)} credited in ledger entry{" "}
-          <Link href="/ledger" className="font-mono underline">
+          <Link href={`/ledger?search=${scan.ledgerTxnId ?? ""}`} className="font-mono underline">
             {scan.ledgerTxnId}
           </Link>
           . Re-approval is blocked to prevent duplicate credits.
@@ -112,68 +104,64 @@ export function ScanDetail({ id }: { id: string }) {
             <SectionCard
               title="Plumber"
               actions={
-                plumber ? (
-                  <Link href={`/plumbers/${plumber.id}`} className="text-xs text-primary hover:underline">
-                    View profile
-                  </Link>
-                ) : null
+                <Link href={`/plumbers/${plumber.id}`} className="text-xs text-primary hover:underline">
+                  View profile
+                </Link>
               }
             >
-              {plumber ? (
-                <DetailGrid
-                  columns={1}
-                  items={[
-                    { label: "Name", value: `${plumber.name} (${plumber.id})` },
-                    { label: "Mobile · City", value: `${plumber.mobile} · ${plumber.city}` },
-                    {
-                      label: "KYC / account",
-                      value: (
-                        <span className="flex gap-2">
-                          <StatusBadge status={plumber.verificationStatus} />
-                          <StatusBadge status={plumber.accountStatus} />
-                        </span>
-                      ),
-                    },
-                    { label: "Available balance", value: formatPoints(balance) },
-                  ]}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">Plumber record not found.</p>
-              )}
+              <DetailGrid
+                columns={1}
+                items={[
+                  { label: "Name", value: `${plumber.name} (${plumber.id})` },
+                  { label: "Mobile · City", value: `${plumber.mobile} · ${plumber.city}` },
+                  {
+                    label: "KYC / account",
+                    value: (
+                      <span className="flex gap-2">
+                        <StatusBadge status={plumber.verificationStatus} />
+                        <StatusBadge status={plumber.accountStatus} />
+                      </span>
+                    ),
+                  },
+                  { label: "Available balance", value: formatPoints(balance) },
+                ]}
+              />
             </SectionCard>
             <SectionCard
               title="Product"
               actions={
-                product ? (
-                  <Link href={`/products/${product.id}`} className="text-xs text-primary hover:underline">
-                    View product
-                  </Link>
-                ) : null
+                <Link href={`/products/${product.id}`} className="text-xs text-primary hover:underline">
+                  View product
+                </Link>
               }
             >
-              {product ? (
-                <div className="flex gap-4">
-                  <ProductThumb src={product.image} alt={product.name} className="size-20 shrink-0" sizes="80px" />
-                  <DetailGrid
-                    columns={1}
-                    items={[
-                      { label: "Model", value: `${product.name}` },
-                      { label: "Category", value: product.category },
-                      { label: "Dimensions", value: product.dimensions ?? "Not published" },
-                    ]}
-                  />
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Code does not match the catalogue.</p>
-              )}
+              <div className="flex gap-4">
+                <ProductThumb src={product.imageUrl} alt={product.name} className="size-20 shrink-0" sizes="80px" />
+                <DetailGrid
+                  columns={1}
+                  items={[
+                    { label: "Model", value: `${product.name}` },
+                    { label: "Category", value: product.category },
+                    { label: "Dimensions", value: product.dimensions ?? "Not published" },
+                  ]}
+                />
+              </div>
             </SectionCard>
           </div>
           <SectionCard title="Submission & proof of sale">
             <DetailGrid
               columns={3}
               items={[
-                { label: "Submitted serial code", value: <span className="font-mono">{scan.submittedCode}</span> },
-                { label: "Installation site", value: scan.siteLocation },
+                { label: "Submitted code", value: <span className="font-mono break-all">{scan.productUnitSerial ?? scan.submittedCode}</span> },
+                {
+                  label: "QR label",
+                  value: scan.labelVerified ? (
+                    <span className="text-success">Signature verified</span>
+                  ) : (
+                    <span className="text-warning">Typed manually / unsigned</span>
+                  ),
+                },
+                { label: "Installation site", value: scan.siteLocation || "—" },
                 { label: "Scanned at", value: formatDateTime(scan.scannedAt) },
                 {
                   label: "Retailer reference",
@@ -203,7 +191,12 @@ export function ScanDetail({ id }: { id: string }) {
               ]}
             />
           </SectionCard>
-          <SectionCard title="Verification checks" description="Deterministic demo rules – blocking checks must pass before approval">
+          {scan.photoKey ? (
+            <SectionCard title="Installation photo" description="Uploaded by the plumber with the scan">
+              <UploadedFile fileKey={scan.photoKey} alt={`Installation photo for ${scan.id}`} />
+            </SectionCard>
+          ) : null}
+          <SectionCard title="Verification checks" description="Evaluated by the API – blocking checks must pass before approval">
             <ChecksList checks={checks} />
           </SectionCard>
         </div>
@@ -211,12 +204,12 @@ export function ScanDetail({ id }: { id: string }) {
           <SectionCard title="Points calculation">
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">Base points for model {product?.modelCode}</dt>
-                <dd className="font-medium tabular-nums">{formatNumber(product?.plumberPoints ?? 0)}</dd>
+                <dt className="text-muted-foreground">Base points for model {product.modelCode}</dt>
+                <dd className="font-medium tabular-nums">{formatNumber(pointsCalculation.basePoints)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Reward eligible</dt>
-                <dd>{product?.rewardEligible ? "Yes" : "No"}</dd>
+                <dd>{pointsCalculation.rewardEligible ? "Yes" : "No"}</dd>
               </div>
               <div className="flex justify-between border-t border-border pt-2 text-base">
                 <dt className="font-medium">{scan.status === "Approved" ? "Points credited" : "Points on approval"}</dt>
@@ -234,7 +227,7 @@ export function ScanDetail({ id }: { id: string }) {
             <SchemeImpactList impacts={impacts} />
           </SectionCard>
           <SectionCard title="Verification history">
-            <Timeline events={scan.history} />
+            <Timeline events={timeline} />
           </SectionCard>
         </div>
       </div>
@@ -245,16 +238,16 @@ export function ScanDetail({ id }: { id: string }) {
         title="Approve scan and credit points?"
         description={
           <>
-            {plumber?.name} will be credited <strong>{formatPoints(points)}</strong>
+            {plumber.name} will be credited <strong>{formatPoints(points)}</strong>
             {bonus > 0 ? <> plus a <strong>{formatPoints(bonus)}</strong> scheme bonus</> : null}. A ledger transaction and audit entry will be created.
           </>
         }
         confirmLabel="Approve & credit"
         onConfirm={() =>
           runAction(
-            () => approveScan(scan.id),
+            () => call(api.POST("/api/v1/admin/scans/{id}/approve", { params: { path: { id: scan.id } }, body: {} })),
             (r) =>
-              `Scan approved – ${formatPoints(r.points)} credited to ${plumber?.name}` +
+              `Scan approved – ${formatPoints(r.points)} credited to ${plumber.name}` +
               (r.schemeAwards.length ? ` + ${r.schemeAwards.map((s) => `${formatPoints(s.incentivePoints)} bonus (${s.name})`).join(", ")}` : ""),
           )
         }
@@ -263,12 +256,14 @@ export function ScanDetail({ id }: { id: string }) {
         open={rejectOpen}
         onOpenChange={setRejectOpen}
         title="Reject scan"
-        description="No points will be credited. The reason is shared with the plumber (simulated) and recorded in the audit log."
+        description="No points will be credited. The reason is shown to the plumber in the app and recorded in the audit log."
         label="Rejection reason"
         placeholder="e.g. Serial code already credited on another installation"
         confirmLabel="Reject scan"
         destructive
-        onSubmit={(reason) => runAction(() => rejectScan(scan.id, reason), "Scan rejected – no points credited").ok}
+        onSubmit={async (reason) =>
+          (await runAction(() => call(api.POST("/api/v1/admin/scans/{id}/reject", { params: { path: { id: scan.id } }, body: { reason } })), "Scan rejected – no points credited")).ok
+        }
       />
       <ReasonDialog
         open={flagOpen}
@@ -277,7 +272,9 @@ export function ScanDetail({ id }: { id: string }) {
         description="The scan stays uncredited until it is approved or rejected after investigation."
         label="What needs investigating?"
         confirmLabel="Flag scan"
-        onSubmit={(reason) => runAction(() => flagScan(scan.id, reason), "Scan flagged for investigation").ok}
+        onSubmit={async (reason) =>
+          (await runAction(() => call(api.POST("/api/v1/admin/scans/{id}/flag", { params: { path: { id: scan.id } }, body: { reason } })), "Scan flagged for investigation")).ok
+        }
       />
     </div>
   );

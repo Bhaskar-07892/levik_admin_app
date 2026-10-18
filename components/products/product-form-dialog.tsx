@@ -10,10 +10,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { createProduct, updateProduct } from "@/lib/mock-api/services";
+import { api, call } from "@/lib/api/client";
+import type { ProductDto } from "@/lib/api/types";
 import { runAction } from "@/lib/utils/run-action";
 import { productFormSchema, type ProductFormValues, type ProductInput } from "@/lib/validations";
-import { PRODUCT_CATEGORIES, type Product } from "@/types";
+import { PRODUCT_CATEGORIES } from "@/types";
 
 const EMPTY: ProductFormValues = {
   name: "",
@@ -30,7 +31,7 @@ const EMPTY: ProductFormValues = {
   rewardEligible: true,
 };
 
-const toValues = (p?: Product): ProductFormValues =>
+const toValues = (p?: ProductDto): ProductFormValues =>
   p
     ? {
         name: p.name,
@@ -54,10 +55,10 @@ export function ProductFormDialog({
   onOpenChange,
   onCreated,
 }: {
-  product?: Product;
+  product?: ProductDto;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated?: (product: Product) => void;
+  onCreated?: (product: ProductDto) => void;
 }) {
   const form = useForm<ProductFormValues>({ resolver: zodResolver(productFormSchema), defaultValues: toValues(product) });
   const { errors } = form.formState;
@@ -66,7 +67,7 @@ export function ProductFormDialog({
     if (open) form.reset(toValues(product));
   }, [open, product, form]);
 
-  const submit = form.handleSubmit(({ featuresText, ...values }) => {
+  const submit = form.handleSubmit(async ({ featuresText, ...values }) => {
     const input: ProductInput = {
       ...values,
       dimensions: values.dimensions?.trim() || undefined,
@@ -76,10 +77,13 @@ export function ProductFormDialog({
         .filter(Boolean),
     };
     if (product) {
-      const ok = runAction(() => updateProduct(product.id, input), "Product updated");
-      if (ok.ok) onOpenChange(false);
+      const result = await runAction(
+        () => call(api.PATCH("/api/v1/admin/products/{id}", { params: { path: { id: product.id } }, body: { ...input, dimensions: input.dimensions ?? "" } })),
+        "Product updated",
+      );
+      if (result.ok) onOpenChange(false);
     } else {
-      const created = runAction(() => createProduct(input), (p) => `${p.name} added to the catalogue`);
+      const created = await runAction(() => call(api.POST("/api/v1/admin/products", { body: input })), (p) => `${p.name} added to the catalogue`);
       if (created.ok) {
         onOpenChange(false);
         onCreated?.(created.value);
@@ -94,7 +98,7 @@ export function ProductFormDialog({
           <DialogHeader>
             <DialogTitle>{product ? "Edit product" : "Add product"}</DialogTitle>
             <DialogDescription>
-              Only enter dimensions and features published in the Levik catalogue. MRP and scan points are demo values.
+              Only enter dimensions and features published in the Levik catalogue. Scan points apply to scans approved after the change.
             </DialogDescription>
           </DialogHeader>
           <div className="grid max-h-[62vh] gap-4 overflow-y-auto pr-1 sm:grid-cols-2">

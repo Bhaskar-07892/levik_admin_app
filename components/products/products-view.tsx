@@ -3,64 +3,69 @@
 import { LayoutGrid, List, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { DataTable, type Column } from "@/components/data-table/data-table";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { keepPreviousData } from "@tanstack/react-query";
+import { useState } from "react";
+import { DataTable, PaginationBar, type Column } from "@/components/data-table/data-table";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { SimpleSelect, toOptions } from "@/components/forms/simple-select";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { ProductThumb } from "@/components/shared/product-thumb";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { listProducts } from "@/lib/mock-api/queries";
-import { useDb } from "@/lib/mock-api/store";
+import { $api } from "@/lib/api/client";
+import type { ProductDto } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { cn } from "@/lib/utils";
 import { formatINR, formatNumber } from "@/lib/utils/format";
-import { PRODUCT_CATEGORIES, type Product } from "@/types";
+import { PRODUCT_CATEGORIES, type ProductCategory } from "@/types";
 import { ProductFormDialog } from "./product-form-dialog";
 
 export function ProductsView({ openNew = false }: { openNew?: boolean }) {
-  const db = useDb();
   const router = useRouter();
-  const products = listProducts(db);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
-  const [status, setStatus] = useState("all");
+  const list = usePagedList({ category: "all", status: "all" }, { pageSize: 24 });
   const [view, setView] = useState<"grid" | "table">("grid");
   const [formOpen, setFormOpen] = useState(openNew);
-
-  const filtered = useMemo(
-    () =>
-      products.filter(
-        (p) =>
-          matches(search, p.name, p.modelCode, p.sku, p.barcode, p.category) &&
-          (category === "all" || p.category === category) &&
-          (status === "all" || (status === "Active" ? p.isActive : !p.isActive)),
-      ),
-    [products, search, category, status],
+  const { status, category } = list.filters;
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/products",
+    {
+      params: {
+        query: {
+          page: list.page,
+          pageSize: list.pageSize,
+          search: list.query.search,
+          category: category === "all" ? undefined : (category as ProductCategory),
+          isActive: status === "all" ? undefined : status === "Active",
+        },
+      },
+    },
+    { placeholderData: keepPreviousData },
   );
+  const filtered = data?.items ?? [];
+  const pagination = { page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage };
 
-  const columns: Column<Product>[] = [
+  const columns: Column<ProductDto>[] = [
     {
       id: "product",
       header: "Product",
       cell: (p) => (
         <div className="flex items-center gap-3">
-          <ProductThumb src={p.image} alt={p.name} className="size-11 shrink-0" sizes="44px" />
+          <ProductThumb src={p.imageUrl} alt={p.name} className="size-11 shrink-0" sizes="44px" />
           <div>
             <p className="font-medium">{p.name}</p>
             <p className="text-xs text-muted-foreground">{p.category}</p>
           </div>
         </div>
       ),
-      sortValue: (p) => p.name,
     },
-    { id: "code", header: "Model", cell: (p) => <span className="font-mono text-xs">{p.modelCode}</span>, sortValue: (p) => p.modelCode },
+    { id: "code", header: "Model", cell: (p) => <span className="font-mono text-xs">{p.modelCode}</span> },
     { id: "sku", header: "SKU / barcode", cell: (p) => <div className="font-mono text-xs"><p>{p.sku}</p><p className="text-muted-foreground">{p.barcode}</p></div> },
     { id: "dims", header: "Dimensions", cell: (p) => p.dimensions ?? <span className="text-muted-foreground">Not published</span> },
-    { id: "mrp", header: "Demo MRP", align: "right", cell: (p) => formatINR(p.mrp), sortValue: (p) => p.mrp },
-    { id: "points", header: "Scan pts", align: "right", cell: (p) => (p.rewardEligible ? formatNumber(p.plumberPoints) : "—"), sortValue: (p) => p.plumberPoints },
-    { id: "status", header: "Status", cell: (p) => <StatusBadge status={p.isActive ? "Active" : "Inactive"} />, sortValue: (p) => String(p.isActive) },
+    { id: "mrp", header: "MRP", align: "right", cell: (p) => formatINR(p.mrp) },
+    { id: "points", header: "Scan pts", align: "right", cell: (p) => (p.rewardEligible ? formatNumber(p.plumberPoints) : "—") },
+    { id: "status", header: "Status", cell: (p) => <StatusBadge status={p.isActive ? "Active" : "Inactive"} /> },
   ];
 
   return (
@@ -76,8 +81,8 @@ export function ProductsView({ openNew = false }: { openNew?: boolean }) {
       />
       <div className="rounded-xl border border-border bg-card">
         <TableToolbar
-          search={search}
-          onSearchChange={setSearch}
+          search={list.search}
+          onSearchChange={list.setSearch}
           placeholder="Search name, model code, SKU"
           trailing={
             <div className="inline-flex rounded-lg border border-border p-0.5" role="radiogroup" aria-label="Layout">
@@ -97,12 +102,12 @@ export function ProductsView({ openNew = false }: { openNew?: boolean }) {
             </div>
           }
         >
-          <SimpleSelect value={category} onValueChange={setCategory} options={toOptions(PRODUCT_CATEGORIES, "All categories")} ariaLabel="Filter by category" />
-          <SimpleSelect value={status} onValueChange={setStatus} options={toOptions(["Active", "Inactive"], "All statuses")} ariaLabel="Filter by status" />
+          <SimpleSelect value={category} onValueChange={(value) => list.setFilter("category", value)} options={toOptions(PRODUCT_CATEGORIES, "All categories")} ariaLabel="Filter by category" />
+          <SimpleSelect value={status} onValueChange={(value) => list.setFilter("status", value)} options={toOptions(["Active", "Inactive"], "All statuses")} ariaLabel="Filter by status" />
         </TableToolbar>
         {view === "table" ? (
-          <DataTable caption="Products" data={filtered} columns={columns} getRowId={(p) => p.id} rowHref={(p) => `/products/${p.id}`} pageSize={12} />
-        ) : filtered.length === 0 ? (
+          <DataTable caption="Products" data={filtered} columns={columns} getRowId={(p) => p.id} rowHref={(p) => `/products/${p.id}`} loading={isFetching} pagination={pagination} />
+        ) : filtered.length === 0 && !isFetching ? (
           <EmptyState title="No products match your filters" description="Try clearing the search or changing a filter." />
         ) : (
           <>
@@ -116,7 +121,7 @@ export function ProductsView({ openNew = false }: { openNew?: boolean }) {
                     !p.isActive && "opacity-70",
                   )}
                 >
-                  <ProductThumb src={p.image} alt={p.name} className="aspect-[4/3] w-full rounded-none" sizes="(min-width: 1536px) 25vw, (min-width: 1024px) 33vw, 50vw" />
+                  <ProductThumb src={p.imageUrl} alt={p.name} className="aspect-[4/3] w-full rounded-none" sizes="(min-width: 1536px) 25vw, (min-width: 1024px) 33vw, 50vw" />
                   <div className="space-y-2 p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -139,7 +144,7 @@ export function ProductsView({ openNew = false }: { openNew?: boolean }) {
                 </Link>
               ))}
             </div>
-            <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">{filtered.length} products</p>
+            <PaginationBar {...pagination} />
           </>
         )}
       </div>

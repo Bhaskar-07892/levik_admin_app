@@ -11,7 +11,7 @@ export default function AdminError({ error, reset }: { error: Error & { digest?:
       </div>
       <h1 className="text-lg font-semibold">This page could not be displayed</h1>
       <p className="text-sm text-muted-foreground">{error.message || "An unexpected error occurred."}</p>
-      <p className="text-xs text-muted-foreground">If the demo data looks corrupted, use Settings → Reset Demo Data.</p>
+      <p className="text-xs text-muted-foreground">If this keeps happening, check that the Levik API is reachable (Settings → API connection).</p>
       <Button onClick={reset}>Try again</Button>
     </div>
   );

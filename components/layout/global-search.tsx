@@ -2,9 +2,10 @@
 
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { useDb } from "@/lib/mock-api/store";
+import { $api } from "@/lib/api/client";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 
 interface Result {
@@ -15,8 +16,17 @@ interface Result {
   href: string;
 }
 
+const ROUTES: Record<string, string> = {
+  Plumber: "/plumbers",
+  Retailer: "/retailers",
+  Product: "/products",
+  Scan: "/scans",
+  Invoice: "/invoices",
+  Redemption: "/redemptions",
+  Scheme: "/schemes",
+};
+
 export function GlobalSearch() {
-  const db = useDb();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -34,31 +44,10 @@ export function GlobalSearch() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const results = useMemo<Result[]>(() => {
-    const q = query.trim().toLowerCase();
-    if (q.length < 2) return [];
-    const has = (...fields: Array<string | undefined>) => fields.some((f) => f?.toLowerCase().includes(q));
-    const out: Result[] = [];
-    for (const p of db.plumbers)
-      if (has(p.id, p.name, p.mobile, p.city))
-        out.push({ id: p.id, type: "Plumber", title: p.name, subtitle: `${p.id} · ${p.city}`, href: `/plumbers/${p.id}` });
-    for (const r of db.retailers)
-      if (has(r.id, r.shopName, r.ownerName, r.city, r.gstin))
-        out.push({ id: r.id, type: "Retailer", title: r.shopName, subtitle: `${r.id} · ${r.city}`, href: `/retailers/${r.id}` });
-    for (const p of db.products)
-      if (has(p.id, p.name, p.modelCode, p.sku))
-        out.push({ id: p.id, type: "Product", title: p.name, subtitle: `${p.sku} · ${p.category}`, href: `/products/${p.id}` });
-    for (const s of db.scans)
-      if (has(s.id, s.submittedCode)) out.push({ id: s.id, type: "Scan", title: s.id, subtitle: `${s.submittedCode} · ${s.status}`, href: `/scans/${s.id}` });
-    for (const i of db.invoices)
-      if (has(i.id, i.invoiceNumber, i.buyerName))
-        out.push({ id: i.id, type: "Invoice", title: i.invoiceNumber, subtitle: `${i.id} · ${i.status}`, href: `/invoices/${i.id}` });
-    for (const r of db.redemptions)
-      if (has(r.id)) out.push({ id: r.id, type: "Redemption", title: r.id, subtitle: r.status, href: `/redemptions/${r.id}` });
-    for (const s of db.schemes)
-      if (has(s.id, s.name)) out.push({ id: s.id, type: "Scheme", title: s.name, subtitle: `${s.id} · ${s.status}`, href: `/schemes/${s.id}` });
-    return out.slice(0, 8);
-  }, [db, query]);
+  const term = useDebouncedValue(query.trim(), 250);
+  const { data, isFetching } = $api.useQuery("get", "/api/v1/admin/search", { params: { query: { q: term } } }, { enabled: term.length >= 2 });
+  const results: Result[] =
+    term.length >= 2 ? (data ?? []).map((r) => ({ ...r, href: `${ROUTES[r.type] ?? ""}/${encodeURIComponent(r.id)}` })) : [];
 
   const go = (result: Result) => {
     setOpen(false);
@@ -110,7 +99,7 @@ export function GlobalSearch() {
           className="absolute top-11 right-0 left-0 z-50 overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
         >
           {results.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">No matches for “{query}”.</p>
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">{isFetching || term !== query.trim() ? "Searching…" : `No matches for “${query}”.`}</p>
           ) : (
             results.map((result, index) => (
               <button

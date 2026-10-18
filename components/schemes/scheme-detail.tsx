@@ -2,38 +2,43 @@
 
 import { ArrowLeft, CircleStop, Pause, Pencil, Play } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { DataTable, type Column } from "@/components/data-table/data-table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { NotFoundCard } from "@/components/shared/not-found-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { ProgressBar } from "@/components/shared/progress-bar";
+import { QueryBoundary } from "@/components/shared/query-states";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { RoleBadge, StatusBadge } from "@/components/shared/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { schemeParticipants, type SchemeParticipant } from "@/lib/mock-api/rules";
-import { activateScheme, completeScheme, pauseScheme } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { $api, api, call } from "@/lib/api/client";
+import type { SchemeParticipantDto as SchemeParticipant, SchemeWithSummary } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatINR, formatPoints } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
 
 export function SchemeDetail({ id }: { id: string }) {
-  const db = useDb();
-  const scheme = db.schemes.find((s) => s.id === id);
+  const query = $api.useQuery("get", "/api/v1/admin/schemes/{id}", { params: { path: { id } } });
+  return (
+    <QueryBoundary query={query} entity="Scheme" backHref="/schemes" backLabel="Back to schemes">
+      {(scheme) => <SchemePage scheme={scheme} />}
+    </QueryBoundary>
+  );
+}
+
+function SchemePage({ scheme }: { scheme: SchemeWithSummary }) {
   const [activateOpen, setActivateOpen] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
-  const participants = useMemo(() => (scheme ? schemeParticipants(db, scheme) : []), [db, scheme]);
-
-  if (!scheme) return <NotFoundCard entity="Scheme" backHref="/schemes" backLabel="Back to schemes" />;
+  const { data: participants = [], isLoading } = $api.useQuery("get", "/api/v1/admin/schemes/{id}/participants", { params: { path: { id: scheme.id } } });
+  const params = { params: { path: { id: scheme.id } } };
 
   const isSales = scheme.targetType === "Sales Amount";
   const fmt = (v: number) => (isSales ? formatINR(v) : `${v} scans`);
   const editable = scheme.status === "Draft" || scheme.status === "Scheduled";
   const canActivate = ["Draft", "Scheduled", "Paused"].includes(scheme.status);
   const willSchedule = new Date(scheme.startDate) > new Date();
-  const avg = participants.length ? Math.round(participants.reduce((s, p) => s + p.percent, 0) / participants.length) : 0;
+  const { averagePercent: avg, achievers, participants: participantCount, bonusPointsIssued } = scheme.summary;
 
   const columns: Column<SchemeParticipant>[] = [
     {
@@ -134,15 +139,15 @@ export function SchemeDetail({ id }: { id: string }) {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Eligible participants</span>
-              <span className="font-semibold">{participants.length}</span>
+              <span className="font-semibold">{participantCount}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Achieved & credited</span>
-              <span className="font-semibold">{scheme.awardedUserIds.length}</span>
+              <span className="font-semibold">{achievers}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Bonus points issued</span>
-              <span className="font-semibold">{formatPoints(scheme.awardedUserIds.length * scheme.incentivePoints)}</span>
+              <span className="font-semibold">{formatPoints(bonusPointsIssued)}</span>
             </div>
           </div>
         </SectionCard>
@@ -156,6 +161,7 @@ export function SchemeDetail({ id }: { id: string }) {
         <DataTable
           caption="Scheme participants"
           data={participants}
+          loading={isLoading}
           columns={columns}
           getRowId={(p) => p.userId}
           initialSort={{ id: "progress", desc: true }}
@@ -174,7 +180,7 @@ export function SchemeDetail({ id }: { id: string }) {
             : "The scheme goes live now. Bonus points are credited once per participant when an approval pushes them past the target."
         }
         confirmLabel={willSchedule ? "Schedule" : "Activate"}
-        onConfirm={() => runAction(() => activateScheme(scheme.id), (status) => `${scheme.name} is now ${status}`)}
+        onConfirm={() => runAction(() => call(api.POST("/api/v1/admin/schemes/{id}/activate", params)), (s) => `${scheme.name} is now ${s.status}`)}
       />
       <ReasonDialog
         open={pauseOpen}
@@ -182,7 +188,7 @@ export function SchemeDetail({ id }: { id: string }) {
         title="Pause scheme"
         description="Paused schemes do not award bonuses until resumed."
         confirmLabel="Pause scheme"
-        onSubmit={(reason) => runAction(() => pauseScheme(scheme.id, reason), "Scheme paused").ok}
+        onSubmit={async (reason) => (await runAction(() => call(api.POST("/api/v1/admin/schemes/{id}/pause", { ...params, body: { reason } })), "Scheme paused")).ok}
       />
       <ConfirmDialog
         open={completeOpen}
@@ -190,7 +196,7 @@ export function SchemeDetail({ id }: { id: string }) {
         title="Mark scheme as completed?"
         description="No further bonuses will be awarded. Bonuses already credited are unaffected."
         confirmLabel="Complete scheme"
-        onConfirm={() => runAction(() => completeScheme(scheme.id), "Scheme completed")}
+        onConfirm={() => runAction(() => call(api.POST("/api/v1/admin/schemes/{id}/complete", params)), "Scheme completed")}
       />
     </div>
   );

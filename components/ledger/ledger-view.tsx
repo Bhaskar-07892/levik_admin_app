@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { keepPreviousData } from "@tanstack/react-query";
+import { useState } from "react";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { SimpleSelect, toOptions } from "@/components/forms/simple-select";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,33 +11,25 @@ import { DetailGrid } from "@/components/shared/section-card";
 import { RoleBadge, StatusBadge } from "@/components/shared/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { listPointsTransactions, type LedgerRow } from "@/lib/mock-api/queries";
-import { findUser } from "@/lib/mock-api/rules";
-import { useDb } from "@/lib/mock-api/store";
+import { $api } from "@/lib/api/client";
+import type { LedgerEntry, QueryOf } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { formatDateTime, formatNumber } from "@/lib/utils/format";
 import { POINTS_SOURCES } from "@/types";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
-import { LedgerTable, relatedHref } from "./ledger-table";
+import { LedgerTable, relatedHref, userHref } from "./ledger-table";
 
-export function LedgerView() {
-  const db = useDb();
-  const rows = useMemo(() => listPointsTransactions(db), [db]);
-  const [search, setSearch] = useState("");
-  const [role, setRole] = useState("all");
-  const [source, setSource] = useState("all");
-  const [direction, setDirection] = useState("all");
-  const [selected, setSelected] = useState<LedgerRow | null>(null);
+export function LedgerView({ initialSearch }: { initialSearch?: string }) {
+  const list = usePagedList({ role: "all", source: "all", direction: "all" }, { initialSearch });
+  const query = list.query as QueryOf<"/api/v1/admin/points/ledger">;
+  const { data, isFetching } = $api.useQuery("get", "/api/v1/admin/points/ledger", { params: { query } }, { placeholderData: keepPreviousData });
+  // Totals use the same filters, computed by the API over every matching row (not just this page).
+  const totalsQuery = list.filterQuery as QueryOf<"/api/v1/admin/points/ledger/totals">;
+  const { data: totals } = $api.useQuery("get", "/api/v1/admin/points/ledger/totals", { params: { query: totalsQuery } }, { placeholderData: keepPreviousData });
+  const [selected, setSelected] = useState<LedgerEntry | null>(null);
 
-  const filtered = rows.filter(
-    (t) =>
-      matches(search, t.id, t.userName, t.userId, t.note, t.related?.id) &&
-      (role === "all" || t.userRole === role) &&
-      (source === "all" || t.source === source) &&
-      (direction === "all" || (direction === "credit" ? t.credit > 0 : t.debit > 0)),
-  );
-  const credited = filtered.reduce((s, t) => s + t.credit, 0);
-  const debited = filtered.reduce((s, t) => s + t.debit, 0);
-  const user = selected ? findUser(db, selected.userId) : undefined;
+  const credited = totals?.credited ?? 0;
+  const debited = totals?.debited ?? 0;
   const related = selected ? relatedHref(selected.related) : undefined;
 
   return (
@@ -48,13 +41,13 @@ export function LedgerView() {
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <KpiCard label="Credited (filtered)" value={formatNumber(credited)} icon={ArrowDownLeft} accent="success" />
         <KpiCard label="Debited (filtered)" value={formatNumber(debited)} icon={ArrowUpRight} accent="warning" />
-        <KpiCard label="Net outstanding" value={formatNumber(credited - debited)} hint={`${filtered.length} transactions`} icon={Scale} accent="gold" />
+        <KpiCard label="Net outstanding" value={formatNumber(credited - debited)} hint={`${formatNumber(totals?.count ?? 0)} transactions`} icon={Scale} accent="gold" />
       </div>
       <div className="rounded-xl border border-border bg-card">
-        <TableToolbar search={search} onSearchChange={setSearch} placeholder="Search transaction, user, reference">
+        <TableToolbar search={list.search} onSearchChange={list.setSearch} placeholder="Search transaction, user, reference">
           <SimpleSelect
-            value={role}
-            onValueChange={setRole}
+            value={list.filters.role}
+            onValueChange={(value) => list.setFilter("role", value)}
             ariaLabel="Filter by role"
             options={[
               { value: "all", label: "All roles" },
@@ -62,10 +55,10 @@ export function LedgerView() {
               { value: "retailer", label: "Retailers" },
             ]}
           />
-          <SimpleSelect value={source} onValueChange={setSource} options={toOptions(POINTS_SOURCES, "All sources")} ariaLabel="Filter by source" />
+          <SimpleSelect value={list.filters.source} onValueChange={(value) => list.setFilter("source", value)} options={toOptions(POINTS_SOURCES, "All sources")} ariaLabel="Filter by source" />
           <SimpleSelect
-            value={direction}
-            onValueChange={setDirection}
+            value={list.filters.direction}
+            onValueChange={(value) => list.setFilter("direction", value)}
             ariaLabel="Filter by transaction type"
             options={[
               { value: "all", label: "Credits & debits" },
@@ -74,7 +67,12 @@ export function LedgerView() {
             ]}
           />
         </TableToolbar>
-        <LedgerTable rows={filtered} onOpen={setSelected} pageSize={12} />
+        <LedgerTable
+          rows={data?.items ?? []}
+          onOpen={setSelected}
+          loading={isFetching}
+          pagination={{ page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage }}
+        />
       </div>
 
       <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
@@ -91,13 +89,9 @@ export function LedgerView() {
                     label: "User",
                     value: (
                       <span className="flex items-center gap-2">
-                        {user ? (
-                          <Link href={user.href} className="text-primary hover:underline">
-                            {selected.userName}
-                          </Link>
-                        ) : (
-                          selected.userName
-                        )}
+                        <Link href={userHref(selected)} className="text-primary hover:underline">
+                          {selected.userName}
+                        </Link>
                         <RoleBadge role={selected.userRole} />
                       </span>
                     ),
@@ -112,11 +106,9 @@ export function LedgerView() {
                 ]}
               />
               <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
-                {user ? (
-                  <Link href={user.href} className={buttonVariants({ variant: "outline" })}>
-                    Open {selected.userRole} profile
-                  </Link>
-                ) : null}
+                <Link href={userHref(selected)} className={buttonVariants({ variant: "outline" })}>
+                  Open {selected.userRole} profile
+                </Link>
                 {related ? (
                   <Link href={related} className={buttonVariants()}>
                     Open related {selected.related?.type}

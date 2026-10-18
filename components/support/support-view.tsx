@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable, type Column } from "@/components/data-table/data-table";
-import { matches, TableToolbar } from "@/components/data-table/table-toolbar";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
+import { userHref } from "@/components/ledger/ledger-table";
 import { Field } from "@/components/forms/field";
 import { SimpleSelect, toOptions } from "@/components/forms/simple-select";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,30 +15,42 @@ import { StatusTabs } from "@/components/shared/status-tabs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { findUser } from "@/lib/mock-api/rules";
-import { updateTicket } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { Skeleton } from "@/components/ui/skeleton";
+import { $api, api, call } from "@/lib/api/client";
+import { useStatusCounts } from "@/lib/api/hooks";
+import type { QueryOf, TicketDto as SupportTicket } from "@/lib/api/types";
+import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { formatDateTime } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
-import { TICKET_STATUSES, type SupportTicket, type TicketStatus } from "@/types";
+import { TICKET_STATUSES, type TicketStatus } from "@/types";
 
-type Tab = "All" | TicketStatus;
+type Tab = "all" | TicketStatus;
 
 function TicketForm({ ticket, onClose }: { ticket: SupportTicket; onClose: () => void }) {
-  const db = useDb();
-  const user = findUser(db, ticket.userId);
   const [status, setStatus] = useState<string>(ticket.status);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   return (
     <form
       className="grid gap-4"
       noValidate
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (status === ticket.status && !note.trim()) return setError("Change the status or add a note.");
-        const ok = runAction(() => updateTicket(ticket.id, status as TicketStatus, note), `Ticket ${ticket.id} updated`);
-        if (ok.ok) onClose();
+        setSubmitting(true);
+        const result = await runAction(
+          () =>
+            call(
+              api.PATCH("/api/v1/admin/support-tickets/{id}", {
+                params: { path: { id: ticket.id } },
+                body: { status: status as TicketStatus, note: note.trim() || undefined },
+              }),
+            ),
+          `Ticket ${ticket.id} updated`,
+        );
+        setSubmitting(false);
+        if (result.ok) onClose();
       }}
     >
       <DialogHeader>
@@ -51,13 +65,9 @@ function TicketForm({ ticket, onClose }: { ticket: SupportTicket; onClose: () =>
             label: "Raised by",
             value: (
               <span className="flex items-center gap-2">
-                {user ? (
-                  <Link href={user.href} className="text-primary hover:underline">
-                    {user.name}
-                  </Link>
-                ) : (
-                  ticket.userId
-                )}
+                <Link href={userHref(ticket)} className="text-primary hover:underline">
+                  {ticket.userName}
+                </Link>
                 <RoleBadge role={ticket.userRole} />
               </span>
             ),
@@ -84,37 +94,35 @@ function TicketForm({ ticket, onClose }: { ticket: SupportTicket; onClose: () =>
           <SimpleSelect id="tk-status" value={status} onValueChange={setStatus} options={toOptions(TICKET_STATUSES)} />
         </Field>
         <Field label="Add internal note" htmlFor="tk-note" error={error ?? undefined}>
-          <Textarea id="tk-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Visible to admins only (demo)" />
+          <Textarea id="tk-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Visible to admins only" />
         </Field>
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Close
         </Button>
-        <Button type="submit">Save update</Button>
+        <Button type="submit" disabled={submitting}>
+          Save update
+        </Button>
       </DialogFooter>
     </form>
   );
 }
 
 export function SupportView() {
-  const db = useDb();
-  const tickets = useMemo(() => [...db.tickets].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [db]);
-  const [tab, setTab] = useState<Tab>("All");
-  const [search, setSearch] = useState("");
-  const [priority, setPriority] = useState("all");
-  const [openId, setOpenId] = useState<string | null>(null);
-  const open = tickets.find((t) => t.id === openId) ?? null;
-
-  const filtered = tickets.filter(
-    (t) =>
-      (tab === "All" || t.status === tab) &&
-      (priority === "all" || t.priority === priority) &&
-      matches(search, t.id, t.subject, t.description, findUser(db, t.userId)?.name),
+  const list = usePagedList<{ status: Tab; priority: string }>({ status: "all", priority: "all" });
+  const { data, isFetching } = $api.useQuery(
+    "get",
+    "/api/v1/admin/support-tickets",
+    { params: { query: list.query as QueryOf<"/api/v1/admin/support-tickets"> } },
+    { placeholderData: keepPreviousData },
   );
+  const { counts, total } = useStatusCounts("/api/v1/admin/support-tickets/status-counts");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const { data: open } = $api.useQuery("get", "/api/v1/admin/support-tickets/{id}", { params: { path: { id: openId ?? "" } } }, { enabled: openId !== null });
 
   const columns: Column<SupportTicket>[] = [
-    { id: "id", header: "Ticket", cell: (t) => <span className="font-mono text-xs">{t.id}</span>, sortValue: (t) => t.id },
+    { id: "id", header: "Ticket", cell: (t) => <span className="font-mono text-xs">{t.id}</span> },
     {
       id: "subject",
       header: "Subject",
@@ -124,21 +132,20 @@ export function SupportView() {
           <p className="text-xs text-muted-foreground">{t.category}</p>
         </div>
       ),
-      sortValue: (t) => t.subject,
     },
     {
       id: "user",
       header: "Raised by",
       cell: (t) => (
         <div className="flex items-center gap-2">
-          <span>{findUser(db, t.userId)?.name ?? t.userId}</span>
+          <span>{t.userName}</span>
           <RoleBadge role={t.userRole} />
         </div>
       ),
     },
-    { id: "priority", header: "Priority", cell: (t) => <StatusBadge status={t.priority} />, sortValue: (t) => ["Low", "Medium", "High"].indexOf(t.priority) },
-    { id: "status", header: "Status", cell: (t) => <StatusBadge status={t.status} />, sortValue: (t) => t.status },
-    { id: "updated", header: "Updated", cell: (t) => <span className="whitespace-nowrap">{formatDateTime(t.updatedAt)}</span>, sortValue: (t) => t.updatedAt },
+    { id: "priority", header: "Priority", cell: (t) => <StatusBadge status={t.priority} /> },
+    { id: "status", header: "Status", cell: (t) => <StatusBadge status={t.status} /> },
+    { id: "updated", header: "Updated", cell: (t) => <span className="whitespace-nowrap">{formatDateTime(t.updatedAt)}</span> },
   ];
 
   return (
@@ -147,21 +154,39 @@ export function SupportView() {
       <div className="rounded-xl border border-border bg-card">
         <StatusTabs
           label="Ticket status"
-          value={tab}
-          onChange={setTab}
-          tabs={(["All", ...TICKET_STATUSES] as Tab[]).map((value) => ({
+          value={list.filters.status}
+          onChange={(value) => list.setFilter("status", value)}
+          tabs={(["all", ...TICKET_STATUSES] as Tab[]).map((value) => ({
             value,
-            label: value,
-            count: value === "All" ? tickets.length : tickets.filter((t) => t.status === value).length,
+            label: value === "all" ? "All" : value,
+            count: value === "all" ? total : (counts[value] ?? 0),
           }))}
         />
-        <TableToolbar search={search} onSearchChange={setSearch} placeholder="Search tickets">
-          <SimpleSelect value={priority} onValueChange={setPriority} options={toOptions(["High", "Medium", "Low"], "All priorities")} ariaLabel="Filter by priority" />
+        <TableToolbar search={list.search} onSearchChange={list.setSearch} placeholder="Search tickets">
+          <SimpleSelect value={list.filters.priority} onValueChange={(value) => list.setFilter("priority", value)} options={toOptions(["High", "Medium", "Low"], "All priorities")} ariaLabel="Filter by priority" />
         </TableToolbar>
-        <DataTable caption="Support tickets" data={filtered} columns={columns} getRowId={(t) => t.id} onRowClick={(t) => setOpenId(t.id)} initialSort={{ id: "updated", desc: true }} />
+        <DataTable
+          caption="Support tickets"
+          data={data?.items ?? []}
+          columns={columns}
+          getRowId={(t) => t.id}
+          onRowClick={(t) => setOpenId(t.id)}
+          loading={isFetching}
+          pagination={{ page: list.page, pageSize: list.pageSize, total: data?.total ?? 0, onPageChange: list.setPage }}
+        />
       </div>
-      <Dialog open={open !== null} onOpenChange={(o) => !o && setOpenId(null)}>
-        <DialogContent className="sm:max-w-xl">{open ? <TicketForm key={`${open.id}-${open.updatedAt}`} ticket={open} onClose={() => setOpenId(null)} /> : null}</DialogContent>
+      <Dialog open={openId !== null} onOpenChange={(o) => !o && setOpenId(null)}>
+        <DialogContent className="sm:max-w-xl">
+          {open && open.id === openId ? (
+            <TicketForm key={`${open.id}-${open.updatedAt}`} ticket={open} onClose={() => setOpenId(null)} />
+          ) : (
+            <div className="space-y-3" aria-busy="true">
+              <DialogTitle className="sr-only">Loading ticket</DialogTitle>
+              <Skeleton className="h-6 w-2/3" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          )}
+        </DialogContent>
       </Dialog>
     </div>
   );

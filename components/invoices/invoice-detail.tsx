@@ -5,45 +5,45 @@ import Link from "next/link";
 import { useState } from "react";
 import { ChecksList } from "@/components/shared/checks-list";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { NotFoundCard } from "@/components/shared/not-found-card";
 import { PageHeader } from "@/components/shared/page-header";
+import { QueryBoundary } from "@/components/shared/query-states";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { SchemeImpactList } from "@/components/shared/scheme-impact-list";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Timeline } from "@/components/shared/timeline";
+import { UploadedFile } from "@/components/shared/uploaded-file";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  calculateInvoiceIncentive,
-  findRetailer,
-  hasBlockingFailure,
-  invoiceChecks,
-  invoiceSchemeImpacts,
-  invoiceTotals,
-} from "@/lib/mock-api/rules";
-import { approveInvoice, rejectInvoice, requestInvoiceInfo, startInvoiceReview } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { $api, api, call } from "@/lib/api/client";
+import type { InvoiceReview } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatINR, formatNumber, formatPoints } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
 import { InvoiceDocument } from "./invoice-document";
 
 export function InvoiceDetail({ id }: { id: string }) {
-  const db = useDb();
-  const invoice = db.invoices.find((i) => i.id === id);
+  const query = $api.useQuery("get", "/api/v1/admin/invoices/{id}", { params: { path: { id } } });
+  return (
+    <QueryBoundary query={query} entity="Invoice" backHref="/invoices" backLabel="Back to invoices">
+      {(review) => <InvoiceReviewPage review={review} />}
+    </QueryBoundary>
+  );
+}
+
+function InvoiceReviewPage({ review }: { review: InvoiceReview }) {
+  const { invoice, incentive, totals, checks, schemeImpacts: impacts, timeline } = review;
+  const { data: retailer } = $api.useQuery("get", "/api/v1/admin/retailers/{id}", { params: { path: { id: invoice.retailerId } } });
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
-  if (!invoice) return <NotFoundCard entity="Invoice" backHref="/invoices" backLabel="Back to invoices" />;
-
-  const retailer = findRetailer(db, invoice.retailerId);
-  const incentive = calculateInvoiceIncentive(db, invoice);
-  const totals = invoiceTotals(invoice);
-  const checks = invoiceChecks(db, invoice);
-  const blocked = hasBlockingFailure(checks);
-  const impacts = invoiceSchemeImpacts(db, invoice);
-  const bonus = impacts.filter((i) => i.willAward).reduce((s, i) => s + i.scheme.incentivePoints, 0);
+  const blocked = checks.some((c) => c.blocking && !c.passed);
+  const bonus = impacts.filter((i) => i.willAward).reduce((s, i) => s + i.incentivePoints, 0);
+  const params = { params: { path: { id: invoice.id } } };
+  const approve = () => call(api.POST("/api/v1/admin/invoices/{id}/approve", params));
+  const startReview = () => call(api.POST("/api/v1/admin/invoices/{id}/start-review", params));
+  const reject = (reason: string) => call(api.POST("/api/v1/admin/invoices/{id}/reject", { ...params, body: { reason } }));
+  const requestInfo = (message: string) => call(api.POST("/api/v1/admin/invoices/{id}/request-info", { ...params, body: { message } }));
   const open = invoice.status !== "Approved" && invoice.status !== "Rejected";
 
   return (
@@ -53,13 +53,13 @@ export function InvoiceDetail({ id }: { id: string }) {
       </Link>
       <PageHeader
         title={`Invoice ${invoice.invoiceNumber}`}
-        description={`${invoice.id} · ${retailer?.shopName ?? invoice.retailerId} · submitted ${formatDateTime(invoice.submittedAt)}`}
+        description={`${invoice.id} · ${invoice.retailerName} · submitted ${formatDateTime(invoice.submittedAt)}`}
         eyebrow={<StatusBadge status={invoice.status} />}
         actions={
           open ? (
             <>
               {invoice.status === "Submitted" || invoice.status === "More Information Required" ? (
-                <Button variant="outline" onClick={() => runAction(() => startInvoiceReview(invoice.id), "Invoice moved to review")}>
+                <Button variant="outline" onClick={() => void runAction(() => startReview(), "Invoice moved to review")}>
                   <ClipboardCheck /> Start review
                 </Button>
               ) : null}
@@ -84,7 +84,7 @@ export function InvoiceDetail({ id }: { id: string }) {
             <>
               {" "}
               in{" "}
-              <Link href="/ledger" className="font-mono underline">
+              <Link href={`/ledger?search=${invoice.ledgerTxnId}`} className="font-mono underline">
                 {invoice.ledgerTxnId}
               </Link>
             </>
@@ -128,8 +128,8 @@ export function InvoiceDetail({ id }: { id: string }) {
                   {incentive.lines.map((line) => (
                     <TableRow key={line.lineId}>
                       <TableCell>
-                        <p className="font-medium">{line.product?.name ?? "Unknown product"}</p>
-                        <p className="text-xs text-muted-foreground">{line.product?.category}</p>
+                        <p className="font-medium">{line.productName}</p>
+                        <p className="text-xs text-muted-foreground">{invoice.lines.find((l) => l.id === line.lineId)?.category}</p>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{line.quantity}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatINR(line.unitPrice)}</TableCell>
@@ -150,9 +150,15 @@ export function InvoiceDetail({ id }: { id: string }) {
               </Table>
             </div>
           </SectionCard>
-          <SectionCard title="Invoice document" description="Sample invoice preview generated from submitted line items (mock)">
-            <InvoiceDocument db={db} invoice={invoice} />
-          </SectionCard>
+          {invoice.documentKey ? (
+            <SectionCard title="Invoice document" description="Uploaded by the retailer – compare it with the line items above">
+              <UploadedFile fileKey={invoice.documentKey} alt={`Invoice ${invoice.invoiceNumber}`} />
+            </SectionCard>
+          ) : (
+            <SectionCard title="Invoice document" description="No document uploaded – preview generated from the submitted line items">
+              <InvoiceDocument review={review} retailer={retailer} />
+            </SectionCard>
+          )}
         </div>
         <div className="space-y-6">
           <SectionCard title="Incentive calculation">
@@ -180,17 +186,15 @@ export function InvoiceDetail({ id }: { id: string }) {
           <SectionCard
             title="Retailer"
             actions={
-              retailer ? (
-                <Link href={`/retailers/${retailer.id}`} className="text-xs text-primary hover:underline">
-                  View retailer
-                </Link>
-              ) : null
+              <Link href={`/retailers/${invoice.retailerId}`} className="text-xs text-primary hover:underline">
+                View retailer
+              </Link>
             }
           >
             <DetailGrid
               columns={1}
               items={[
-                { label: "Shop", value: retailer?.shopName },
+                { label: "Shop", value: invoice.retailerName },
                 { label: "GSTIN", value: <span className="font-mono">{retailer?.gstin ?? "Unregistered"}</span> },
                 { label: "Buyer on invoice", value: invoice.buyerName },
                 { label: "Invoice date", value: formatDate(invoice.invoiceDate) },
@@ -205,7 +209,7 @@ export function InvoiceDetail({ id }: { id: string }) {
             <SchemeImpactList impacts={impacts} />
           </SectionCard>
           <SectionCard title="Review history">
-            <Timeline events={invoice.history} />
+            <Timeline events={timeline} />
           </SectionCard>
         </div>
       </div>
@@ -216,16 +220,16 @@ export function InvoiceDetail({ id }: { id: string }) {
         title="Approve invoice and credit incentive?"
         description={
           <>
-            {retailer?.shopName} will be credited <strong>{formatPoints(incentive.points)}</strong>
+            {invoice.retailerName} will be credited <strong>{formatPoints(incentive.points)}</strong>
             {bonus > 0 ? <> plus a <strong>{formatPoints(bonus)}</strong> scheme bonus</> : null}. Sales performance and dashboard metrics update immediately.
           </>
         }
         confirmLabel="Approve & credit"
         onConfirm={() =>
           runAction(
-            () => approveInvoice(invoice.id),
+            approve,
             (r) =>
-              `Invoice approved – ${formatPoints(r.points)} credited to ${retailer?.shopName}` +
+              `Invoice approved – ${formatPoints(r.points)} credited to ${invoice.retailerName}` +
               (r.schemeAwards.length ? ` + ${r.schemeAwards.map((s) => `${formatPoints(s.incentivePoints)} bonus (${s.name})`).join(", ")}` : ""),
           )
         }
@@ -239,16 +243,16 @@ export function InvoiceDetail({ id }: { id: string }) {
         placeholder="e.g. Invoice number duplicates an earlier approved invoice"
         confirmLabel="Reject invoice"
         destructive
-        onSubmit={(reason) => runAction(() => rejectInvoice(invoice.id, reason), "Invoice rejected").ok}
+        onSubmit={async (reason) => (await runAction(() => reject(reason), "Invoice rejected")).ok}
       />
       <ReasonDialog
         open={infoOpen}
         onOpenChange={setInfoOpen}
         title="Request more information"
-        description="The retailer is asked to resubmit (simulated notification)."
+        description="The retailer sees this message in the app and can resubmit the invoice."
         label="Message to retailer"
         confirmLabel="Send request"
-        onSubmit={(reason) => runAction(() => requestInvoiceInfo(invoice.id, reason), "Information requested from retailer").ok}
+        onSubmit={async (message) => (await runAction(() => requestInfo(message), "Information requested from retailer")).ok}
       />
     </div>
   );

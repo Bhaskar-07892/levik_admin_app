@@ -5,27 +5,30 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { NAV_SECTIONS } from "@/lib/navigation";
-import { useDb } from "@/lib/mock-api/store";
+import { useNotifications, useSettings } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "./brand-mark";
 
 export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const db = useDb();
+  const { data: settings } = useSettings();
+  const { data: notifications } = useNotifications();
+  const counts = notifications?.counts;
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const badges: Record<string, number> = {
-    "/scans": db.scans.filter((s) => s.status === "Pending").length,
-    "/invoices": db.invoices.filter((i) => i.status === "Submitted" || i.status === "Under Review").length,
-    "/redemptions": db.redemptions.filter((r) => r.status === "Requested").length,
-    "/retailers": db.retailers.filter((r) => r.verificationStatus === "Pending").length,
+  const badges: Record<string, number | undefined> = {
+    "/scans": counts?.pendingScans,
+    "/invoices": counts?.pendingInvoices,
+    "/redemptions": counts?.requestedRedemptions,
+    "/retailers": counts?.pendingRetailers,
+    "/support": counts?.openTickets,
   };
 
   return (
     <nav aria-label="Main navigation" className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="border-b border-sidebar-border px-5 py-5">
         <BrandMark />
-        <p className="mt-3 text-[11px] font-medium tracking-wide text-sidebar-foreground/70 uppercase">{db.settings.programmeName}</p>
+        <p className="mt-3 text-[11px] font-medium tracking-wide text-sidebar-foreground/70 uppercase">{settings?.programmeName ?? "Levik Rewards Programme"}</p>
       </div>
       <div className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
         {NAV_SECTIONS.map((section) => {
@@ -76,7 +79,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </div>
-      <div className="border-t border-sidebar-border px-5 py-3 text-[11px] text-sidebar-foreground/60">Demo build · mock data only</div>
+      <div className="border-t border-sidebar-border px-5 py-3 text-[11px] text-sidebar-foreground/60">Connected to Levik API</div>
     </nav>
   );
 }

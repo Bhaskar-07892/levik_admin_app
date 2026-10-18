@@ -2,20 +2,22 @@
 
 import { ArrowLeft, Ban, CheckCircle2, PackageCheck, Truck, Workflow, XOctagon } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { RewardIcon } from "@/components/rewards/reward-icon";
 import { ChecksList } from "@/components/shared/checks-list";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { NotFoundCard } from "@/components/shared/not-found-card";
+import { Field } from "@/components/forms/field";
 import { PageHeader } from "@/components/shared/page-header";
+import { QueryBoundary } from "@/components/shared/query-states";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { RoleBadge, StatusBadge } from "@/components/shared/status-badge";
 import { Timeline } from "@/components/shared/timeline";
 import { Button } from "@/components/ui/button";
-import { findReward, findUser, hasBlockingFailure, nextRedemptionStatuses, pointsSummary, redemptionChecks } from "@/lib/mock-api/rules";
-import { updateRedemptionStatus } from "@/lib/mock-api/services";
-import { useDb } from "@/lib/mock-api/store";
+import { Input } from "@/components/ui/input";
+import { userHref } from "@/components/ledger/ledger-table";
+import { $api, api, call } from "@/lib/api/client";
+import type { RedemptionReview } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { formatDateTime, formatNumber, formatPoints } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
@@ -23,28 +25,51 @@ import type { RedemptionStatus } from "@/types";
 
 const ACTION_META: Partial<Record<RedemptionStatus, { label: string; icon: typeof CheckCircle2; description: string }>> = {
   Approved: { label: "Approve & deduct points", icon: CheckCircle2, description: "Validates balance and stock, deducts points once and reduces reward stock by one." },
-  Processing: { label: "Mark processing", icon: Workflow, description: "Creates a mock fulfilment reference. No points are deducted." },
-  Dispatched: { label: "Mark dispatched", icon: Truck, description: "Assigns a mock courier tracking number. No points are deducted." },
-  Delivered: { label: "Mark delivered", icon: PackageCheck, description: "Completes the redemption. Digital rewards receive a mock voucher code. No points are deducted." },
+  Processing: { label: "Mark processing", icon: Workflow, description: "Creates a fulfilment reference. No points are deducted." },
+  Dispatched: { label: "Mark dispatched", icon: Truck, description: "Records the courier and tracking number. No points are deducted." },
+  Delivered: { label: "Mark delivered", icon: PackageCheck, description: "Completes the redemption. For digital rewards, record the voucher code sent to the user. No points are deducted." },
 };
 
 export function RedemptionDetail({ id }: { id: string }) {
-  const db = useDb();
-  const redemption = db.redemptions.find((r) => r.id === id);
+  const query = $api.useQuery("get", "/api/v1/admin/redemptions/{id}", { params: { path: { id } } });
+  return (
+    <QueryBoundary query={query} entity="Redemption" backHref="/redemptions" backLabel="Back to redemptions">
+      {(review) => <RedemptionReviewPage review={review} />}
+    </QueryBoundary>
+  );
+}
+
+type Transition = "Processing" | "Dispatched" | "Delivered" | "Cancelled" | "Failed";
+
+function RedemptionReviewPage({ review }: { review: RedemptionReview }) {
+  const { redemption, checks, userPoints, ledgerEntries: ledger, timeline, nextStatuses: next } = review;
+  const { reward } = redemption;
   const [pending, setPending] = useState<RedemptionStatus | null>(null);
   const [cancelTarget, setCancelTarget] = useState<"Cancelled" | "Failed" | null>(null);
-  const ledger = useMemo(() => db.ledger.filter((t) => t.related?.type === "redemption" && t.related.id === id), [db, id]);
+  const [courierName, setCourierName] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [voucherCode, setVoucherCode] = useState("");
+  const balance = userPoints.available;
+  const blocked = checks.some((c) => c.blocking && !c.passed);
+  const profileHref = userHref(redemption);
 
-  if (!redemption) return <NotFoundCard entity="Redemption" backHref="/redemptions" backLabel="Back to redemptions" />;
-
-  const reward = findReward(db, redemption.rewardId);
-  const user = findUser(db, redemption.userId);
-  const balance = pointsSummary(db, redemption.userId).available;
-  const checks = redemptionChecks(db, redemption);
-  const blocked = hasBlockingFailure(checks);
-  const next = nextRedemptionStatuses(redemption, reward);
+  const perform = (status: RedemptionStatus, reason?: string) =>
+    status === "Approved"
+      ? call(api.POST("/api/v1/admin/redemptions/{id}/approve", { params: { path: { id: redemption.id } } }))
+      : call(
+          api.POST("/api/v1/admin/redemptions/{id}/status", {
+            params: { path: { id: redemption.id } },
+            body: {
+              status: status as Transition,
+              reason,
+              courierName: courierName.trim() || undefined,
+              trackingNumber: trackingNumber.trim() || undefined,
+              voucherCode: voucherCode.trim() || undefined,
+            },
+          }),
+        );
   const forward = next.filter((s) => s !== "Cancelled" && s !== "Failed");
-  const steps: RedemptionStatus[] = reward?.type === "Physical" ? ["Requested", "Approved", "Processing", "Dispatched", "Delivered"] : ["Requested", "Approved", "Processing", "Delivered"];
+  const steps: RedemptionStatus[] = reward.type === "Physical" ? ["Requested", "Approved", "Processing", "Dispatched", "Delivered"] : ["Requested", "Approved", "Processing", "Delivered"];
   const currentIndex = steps.indexOf(redemption.status);
   const terminalNegative = redemption.status === "Cancelled" || redemption.status === "Failed";
 
@@ -55,7 +80,7 @@ export function RedemptionDetail({ id }: { id: string }) {
       </Link>
       <PageHeader
         title={`Redemption ${redemption.id}`}
-        description={`${reward?.name ?? redemption.rewardId} for ${user?.name ?? redemption.userId} · requested ${formatDateTime(redemption.requestedAt)}`}
+        description={`${reward.name} for ${redemption.userName} · requested ${formatDateTime(redemption.requestedAt)}`}
         eyebrow={
           <div className="flex gap-2">
             <StatusBadge status={redemption.status} />
@@ -114,40 +139,33 @@ export function RedemptionDetail({ id }: { id: string }) {
             <SectionCard
               title="Requested by"
               actions={
-                user ? (
-                  <Link href={user.href} className="text-xs text-primary hover:underline">
-                    View profile
-                  </Link>
-                ) : null
+                <Link href={profileHref} className="text-xs text-primary hover:underline">
+                  View profile
+                </Link>
               }
             >
               <DetailGrid
                 columns={1}
                 items={[
-                  { label: "Name", value: `${user?.name ?? "Unknown"} (${redemption.userId})` },
-                  { label: "Location", value: user?.subtitle },
+                  { label: "Name", value: `${redemption.userName} (${redemption.userId})` },
                   { label: "Available balance", value: <span className="font-semibold text-primary">{formatPoints(balance)}</span> },
                   { label: "Delivery", value: redemption.deliveryAddress },
                 ]}
               />
             </SectionCard>
             <SectionCard title="Reward">
-              {reward ? (
-                <div className="flex gap-4">
-                  <RewardIcon category={reward.category} className="size-14 shrink-0" />
-                  <DetailGrid
-                    columns={1}
-                    items={[
-                      { label: "Reward", value: reward.name },
-                      { label: "Type", value: `${reward.category} · ${reward.type}` },
-                      { label: "Points", value: formatPoints(redemption.pointsCost) },
-                      { label: "Current stock", value: `${reward.stock} units` },
-                    ]}
-                  />
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Reward not found.</p>
-              )}
+              <div className="flex gap-4">
+                <RewardIcon category={reward.category} className="size-14 shrink-0" />
+                <DetailGrid
+                  columns={1}
+                  items={[
+                    { label: "Reward", value: reward.name },
+                    { label: "Type", value: `${reward.category} · ${reward.type}` },
+                    { label: "Points", value: formatPoints(redemption.pointsCost) },
+                    { label: "Current stock", value: `${reward.stock} units` },
+                  ]}
+                />
+              </div>
             </SectionCard>
           </div>
           {redemption.status === "Requested" ? (
@@ -155,7 +173,7 @@ export function RedemptionDetail({ id }: { id: string }) {
               <ChecksList checks={checks} />
             </SectionCard>
           ) : null}
-          <SectionCard title="Fulfilment references" description="Mock references – no courier or voucher provider is integrated">
+          <SectionCard title="Fulfilment references" description="Recorded by admins – courier and voucher providers are not integrated yet">
             <DetailGrid
               columns={3}
               items={[
@@ -191,13 +209,13 @@ export function RedemptionDetail({ id }: { id: string }) {
               </ul>
             )}
             <div className="border-t border-border px-5 py-3">
-              <Link href="/ledger" className="text-xs text-primary hover:underline">
+              <Link href={`/ledger?search=${redemption.id}`} className="text-xs text-primary hover:underline">
                 Open points ledger
               </Link>
             </div>
           </SectionCard>
           <SectionCard title="Status history">
-            <Timeline events={redemption.history} />
+            <Timeline events={timeline} />
           </SectionCard>
         </div>
       </div>
@@ -211,11 +229,27 @@ export function RedemptionDetail({ id }: { id: string }) {
         onConfirm={() =>
           pending &&
           runAction(
-            () => updateRedemptionStatus(redemption.id, pending),
+            () => perform(pending),
             pending === "Approved" ? `Approved – ${formatPoints(redemption.pointsCost)} deducted, stock updated` : `Redemption marked ${pending.toLowerCase()}`,
           )
         }
-      />
+      >
+        {pending === "Dispatched" ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Courier (optional)" htmlFor="rd-courier">
+              <Input id="rd-courier" value={courierName} onChange={(e) => setCourierName(e.target.value)} placeholder="e.g. Blue Dart" />
+            </Field>
+            <Field label="Tracking number (optional)" htmlFor="rd-tracking">
+              <Input id="rd-tracking" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} />
+            </Field>
+          </div>
+        ) : null}
+        {pending === "Delivered" && reward.type === "Digital" ? (
+          <Field label="Voucher code (optional)" htmlFor="rd-voucher">
+            <Input id="rd-voucher" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value)} className="font-mono" />
+          </Field>
+        ) : null}
+      </ConfirmDialog>
       <ReasonDialog
         open={cancelTarget !== null}
         onOpenChange={(open) => !open && setCancelTarget(null)}
@@ -223,8 +257,8 @@ export function RedemptionDetail({ id }: { id: string }) {
         description={redemption.debitTxnId ? `${formatPoints(redemption.pointsCost)} will be refunded once and reward stock restored.` : "No points have been deducted yet, so no refund is needed."}
         confirmLabel={cancelTarget === "Failed" ? "Mark failed" : "Cancel redemption"}
         destructive
-        onSubmit={(reason) =>
-          runAction(() => updateRedemptionStatus(redemption.id, cancelTarget ?? "Cancelled", reason), cancelTarget === "Failed" ? "Marked as failed" : "Redemption cancelled").ok
+        onSubmit={async (reason) =>
+          (await runAction(() => perform(cancelTarget ?? "Cancelled", reason), cancelTarget === "Failed" ? "Marked as failed" : "Redemption cancelled")).ok
         }
       />
     </div>

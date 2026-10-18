@@ -15,12 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createScheme, updateScheme } from "@/lib/mock-api/services";
+import { api, call } from "@/lib/api/client";
+import type { SchemeDto } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { formatINR, formatPoints } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
 import { schemeFormSchema, type SchemeFormValues, type SchemeInput } from "@/lib/validations";
-import { PRODUCT_CATEGORIES, type Scheme } from "@/types";
+import { PRODUCT_CATEGORIES } from "@/types";
 
 const STEPS: Array<{ title: string; fields: FieldPath<SchemeFormValues>[] }> = [
   { title: "Basics", fields: ["name", "description", "role"] },
@@ -38,7 +39,7 @@ const fromDateInput = (value: string, endOfDay: boolean) => {
   return new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0).toISOString();
 };
 
-function defaults(scheme?: Scheme): SchemeFormValues {
+function defaults(scheme?: SchemeDto): SchemeFormValues {
   if (scheme) {
     return {
       name: scheme.name,
@@ -66,7 +67,7 @@ function defaults(scheme?: Scheme): SchemeFormValues {
   };
 }
 
-export function SchemeForm({ scheme }: { scheme?: Scheme }) {
+export function SchemeForm({ scheme }: { scheme?: SchemeDto }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const form = useForm<SchemeFormValues>({ resolver: zodResolver(schemeFormSchema), defaultValues: defaults(scheme), mode: "onTouched" });
@@ -79,13 +80,13 @@ export function SchemeForm({ scheme }: { scheme?: Scheme }) {
     if (ok) setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
-  const submit = form.handleSubmit((v) => {
+  const submit = form.handleSubmit(async (v) => {
     const input: SchemeInput = { ...v, startDate: fromDateInput(v.startDate, false), endDate: fromDateInput(v.endDate, true) };
     if (scheme) {
-      const ok = runAction(() => updateScheme(scheme.id, input), "Scheme updated");
-      if (ok.ok) router.push(`/schemes/${scheme.id}`);
+      const result = await runAction(() => call(api.PATCH("/api/v1/admin/schemes/{id}", { params: { path: { id: scheme.id } }, body: input })), "Scheme updated");
+      if (result.ok) router.push(`/schemes/${scheme.id}`);
     } else {
-      const created = runAction(() => createScheme(input), (s) => `${s.name} saved as Draft`);
+      const created = await runAction(() => call(api.POST("/api/v1/admin/schemes", { body: input })), (s) => `${s.name} saved as Draft`);
       if (created.ok) router.push(`/schemes/${created.value.id}`);
     }
   });
