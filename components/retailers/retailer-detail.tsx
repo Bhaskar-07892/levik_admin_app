@@ -14,6 +14,7 @@ import { QueryBoundary } from "@/components/shared/query-states";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { SignedPhoto } from "@/components/shared/signed-photo";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { $api, api, call } from "@/lib/api/client";
@@ -153,6 +154,18 @@ function RetailerProfile({ retailer }: { retailer: Retailer }) {
                 { label: "Registered", value: formatDate(retailer.registeredAt) },
               ]}
             />
+          </SectionCard>
+          <SectionCard title="Photos" description="Set by the retailer in the app. Plumbers see the shop photo when choosing a dealer." className="mt-6">
+            <div className="flex flex-wrap gap-6">
+              <figure className="space-y-2">
+                <SignedPhoto url={retailer.shopPhotoUrl} alt={`${retailer.shopName} shop front`} className="aspect-[4/3] w-72" emptyLabel="No shop photo yet" />
+                <figcaption className="text-xs text-muted-foreground">Shop front</figcaption>
+              </figure>
+              <figure className="space-y-2">
+                <SignedPhoto url={retailer.photoUrl} alt={`${retailer.ownerName} profile photo`} className="aspect-square w-40" />
+                <figcaption className="text-xs text-muted-foreground">Owner</figcaption>
+              </figure>
+            </div>
           </SectionCard>
         </TabsContent>
         <TabsContent value="invoices" className="mt-4">

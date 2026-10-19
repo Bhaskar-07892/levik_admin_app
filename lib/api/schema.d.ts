@@ -118,6 +118,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["FilesController_open_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/admin/login": {
         parameters: {
             query?: never;
@@ -1575,6 +1591,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app/explore/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalogue with the caller's points per product and how many dealers have it in stock. */
+        get: operations["AppExploreController_products_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/explore/products/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One product: earnings, live schemes and the dealers stocking it (nearby first). */
+        get: operations["AppExploreController_product_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/explore/dealers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listed dealers with how many products each has in stock (nearby first). */
+        get: operations["AppExploreController_dealers_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/explore/dealers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One dealer and every product they have in stock, with what each earns the caller. */
+        get: operations["AppExploreController_dealer_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/support-tickets": {
         parameters: {
             query?: never;
@@ -1894,13 +1978,19 @@ export interface components {
         };
         UploadRequestDto: {
             /** @enum {string} */
-            purpose: "scan-photo" | "invoice-document" | "product-image";
-            /** Format: binary */
-            file: string;
+            purpose: "scan-photo" | "invoice-document" | "product-image" | "profile-photo" | "shop-photo";
+            /**
+             * Format: binary
+             * @description Documents the multipart part for Swagger. Multer hands the file to @UploadedFile(), not the body, but class
+             *     fields still create the property, so it needs a validator or forbidNonWhitelisted rejects every upload.
+             */
+            file?: string;
         };
         UploadResponseDto: {
-            /** @description Reference this key when submitting a scan (photoKey) or invoice (documentKey). */
+            /** @description The image/file ID. Reference it when submitting a scan (photoKey), an invoice (documentKey) or a profile/shop photo. */
             key: string;
+            /** @description Signed link to view the file, relative to the API origin. */
+            url: string;
             contentType: string;
             sizeBytes: number;
         };
@@ -2176,6 +2266,8 @@ export interface components {
             pincode: string;
             registeredAt: string;
             aadhaarMasked?: string;
+            /** @description Signed link to the profile photo, relative to the API origin. */
+            photoUrl?: string;
             experienceYears: number;
             specialization: string;
             preferredRetailer?: components["schemas"]["RetailerRefDto"];
@@ -2209,6 +2301,8 @@ export interface components {
             pincode: string;
             registeredAt: string;
             aadhaarMasked?: string;
+            /** @description Signed link to the profile photo, relative to the API origin. */
+            photoUrl?: string;
             experienceYears: number;
             specialization: string;
             preferredRetailer?: components["schemas"]["RetailerRefDto"];
@@ -2242,6 +2336,8 @@ export interface components {
             pincode: string;
             registeredAt: string;
             aadhaarMasked?: string;
+            /** @description Signed link to the profile photo, relative to the API origin. */
+            photoUrl?: string;
             experienceYears: number;
             specialization: string;
             preferredRetailer?: components["schemas"]["RetailerRefDto"];
@@ -2272,6 +2368,8 @@ export interface components {
         UpdateMyPlumberProfileRequestDto: {
             /** Format: email */
             email?: string | null;
+            /** @description Upload key from POST /uploads (purpose profile-photo); null removes the photo. */
+            photoKey?: string | null;
             city?: string;
             state?: string;
             pincode?: string;
@@ -2304,6 +2402,9 @@ export interface components {
             registeredAt: string;
             monthlyTarget: number;
             rejectionReason?: string;
+            /** @description Signed links to the owner's profile photo and the shop front photo, relative to the API origin. */
+            photoUrl?: string;
+            shopPhotoUrl?: string;
             lastLoginAt?: string;
         };
         RetailerPageResponseDto: {
@@ -2333,6 +2434,9 @@ export interface components {
             registeredAt: string;
             monthlyTarget: number;
             rejectionReason?: string;
+            /** @description Signed links to the owner's profile photo and the shop front photo, relative to the API origin. */
+            photoUrl?: string;
+            shopPhotoUrl?: string;
             lastLoginAt?: string;
         };
         UpdateRetailerRequestDto: {
@@ -2366,6 +2470,9 @@ export interface components {
             registeredAt: string;
             monthlyTarget: number;
             rejectionReason?: string;
+            /** @description Signed links to the owner's profile photo and the shop front photo, relative to the API origin. */
+            photoUrl?: string;
+            shopPhotoUrl?: string;
             lastLoginAt?: string;
         };
         ReviewRetailerRequestDto: {
@@ -2394,6 +2501,10 @@ export interface components {
             /** Format: email */
             email?: string | null;
             address?: string;
+            /** @description Upload key from POST /uploads (purpose profile-photo); null removes the photo. */
+            photoKey?: string | null;
+            /** @description Upload key from POST /uploads (purpose shop-photo); null removes the photo. */
+            shopPhotoKey?: string | null;
         };
         StoreResponseDto: {
             id: string;
@@ -2402,6 +2513,8 @@ export interface components {
             city: string;
             state: string;
             mobile: string;
+            /** @description Signed link to the shop front photo, relative to the API origin. */
+            shopPhotoUrl?: string;
         };
         StorePageResponseDto: {
             items: components["schemas"]["StoreResponseDto"][];
@@ -2533,6 +2646,8 @@ export interface components {
             invoiceDate: string;
             submittedAt: string;
             documentKey?: string;
+            /** @description Signed link to the invoice document, relative to the API origin. */
+            documentUrl?: string;
             reviewer?: string;
             reviewedAt?: string;
             incentivePoints?: number;
@@ -2571,6 +2686,8 @@ export interface components {
             invoiceDate: string;
             submittedAt: string;
             documentKey?: string;
+            /** @description Signed link to the invoice document, relative to the API origin. */
+            documentUrl?: string;
             reviewer?: string;
             reviewedAt?: string;
             incentivePoints?: number;
@@ -2711,6 +2828,8 @@ export interface components {
             invoiceNumber?: string;
             siteLocation: string;
             photoKey?: string;
+            /** @description Signed link to the installation photo, relative to the API origin. */
+            photoUrl?: string;
             expectedPoints: number;
             awardedPoints?: number;
             ledgerTxnId?: string;
@@ -2971,6 +3090,118 @@ export interface components {
         };
         ReportStockRequestDto: {
             quantity: number;
+        };
+        ExploreSchemeDto: {
+            id: string;
+            name: string;
+            /** @description One-time bonus on reaching the scheme target. */
+            incentivePoints: number;
+            /** @description Approved scans (plumbers) or ₹ of eligible sales (retailers). */
+            targetValue: number;
+            endDate: string;
+        };
+        ExploreEarningDto: {
+            /** @enum {string} */
+            basis: "per approved scan" | "per unit invoiced at MRP";
+            /** @description Points the caller earns from this product (0 if not reward-eligible). */
+            points: number;
+            /** @description Live schemes for the caller's role that count this product. */
+            schemes: components["schemas"]["ExploreSchemeDto"][];
+        };
+        ExploreProductDto: {
+            /** @enum {string} */
+            category: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
+            id: string;
+            name: string;
+            modelCode: string;
+            description: string;
+            dimensions?: string;
+            features: string[];
+            imageUrl?: string;
+            rewardEligible: boolean;
+            /** @description Approved, active dealers reporting this product in stock. */
+            dealersInStock: number;
+            earning: components["schemas"]["ExploreEarningDto"];
+        };
+        ExploreProductPageDto: {
+            items: components["schemas"]["ExploreProductDto"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        ExploreDealerStockDto: {
+            /** @enum {string} */
+            stockLevel: "In Stock" | "Low Stock";
+            quantity: number;
+            updatedAt: string;
+            id: string;
+            shopName: string;
+            address: string;
+            city: string;
+            state: string;
+            mobile: string;
+            /** @description Signed link to the shop front photo, relative to the API origin. */
+            shopPhotoUrl?: string;
+            /** @description Dealer is in the caller's city ("nearby"). */
+            sameCity: boolean;
+        };
+        ExploreProductDetailDto: {
+            product: components["schemas"]["ExploreProductDto"];
+            /** @description Dealers with this product in stock — caller's city first, then most stock. */
+            dealers: components["schemas"]["ExploreDealerStockDto"][];
+            /** @description Caller's city used for "nearby" ordering. */
+            city?: string;
+        };
+        ExploreDealerSummaryDto: {
+            productsInStock: number;
+            id: string;
+            shopName: string;
+            address: string;
+            city: string;
+            state: string;
+            mobile: string;
+            /** @description Signed link to the shop front photo, relative to the API origin. */
+            shopPhotoUrl?: string;
+            /** @description Dealer is in the caller's city ("nearby"). */
+            sameCity: boolean;
+        };
+        ExploreDealerListDto: {
+            dealers: components["schemas"]["ExploreDealerSummaryDto"][];
+            city?: string;
+        };
+        ExploreDealerDto: {
+            id: string;
+            shopName: string;
+            address: string;
+            city: string;
+            state: string;
+            mobile: string;
+            /** @description Signed link to the shop front photo, relative to the API origin. */
+            shopPhotoUrl?: string;
+            /** @description Dealer is in the caller's city ("nearby"). */
+            sameCity: boolean;
+        };
+        ExploreDealerProductDto: {
+            /** @enum {string} */
+            category: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
+            /** @enum {string} */
+            stockLevel: "In Stock" | "Low Stock";
+            quantity: number;
+            id: string;
+            name: string;
+            modelCode: string;
+            description: string;
+            dimensions?: string;
+            features: string[];
+            imageUrl?: string;
+            rewardEligible: boolean;
+            /** @description Approved, active dealers reporting this product in stock. */
+            dealersInStock: number;
+            earning: components["schemas"]["ExploreEarningDto"];
+        };
+        ExploreDealerDetailDto: {
+            dealer: components["schemas"]["ExploreDealerDto"];
+            products: components["schemas"]["ExploreDealerProductDto"][];
         };
         TicketNoteResponseDto: {
             at: string;
@@ -3320,12 +3551,32 @@ export interface operations {
             };
         };
     };
+    FilesController_open_v1: {
+        parameters: {
+            query: {
+                exp: number;
+                sig: string;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     AuthController_adminLogin_v1: {
         parameters: {
             query?: never;
-            header: {
-                "user-agent": string;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -3371,9 +3622,7 @@ export interface operations {
     AuthController_verifyOtp_v1: {
         parameters: {
             query?: never;
-            header: {
-                "user-agent": string;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -3396,9 +3645,7 @@ export interface operations {
     AuthController_refresh_v1: {
         parameters: {
             query?: never;
-            header: {
-                "user-agent": string;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -4209,9 +4456,7 @@ export interface operations {
     AppPlumbersController_register_v1: {
         parameters: {
             query?: never;
-            header: {
-                "user-agent": string;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -4443,9 +4688,7 @@ export interface operations {
     AppRetailersController_register_v1: {
         parameters: {
             query?: never;
-            header: {
-                "user-agent": string;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -5732,6 +5975,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InventoryItemResponseDto"];
+                };
+            };
+        };
+    };
+    AppExploreController_products_v1: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                /** @description Free-text search */
+                search?: string;
+                category?: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreProductPageDto"];
+                };
+            };
+        };
+    };
+    AppExploreController_product_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreProductDetailDto"];
+                };
+            };
+        };
+    };
+    AppExploreController_dealers_v1: {
+        parameters: {
+            query?: {
+                /** @description Shop name, city or area. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreDealerListDto"];
+                };
+            };
+        };
+    };
+    AppExploreController_dealer_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreDealerDetailDto"];
                 };
             };
         };

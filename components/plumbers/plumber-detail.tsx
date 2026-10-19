@@ -13,6 +13,7 @@ import { QueryBoundary } from "@/components/shared/query-states";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { DetailGrid, SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { SignedPhoto } from "@/components/shared/signed-photo";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { $api, api, call } from "@/lib/api/client";
@@ -148,6 +149,9 @@ function PlumberProfile({ plumber }: { plumber: Plumber }) {
                   <UserCheck /> Re-verify after document review
                 </Button>
               ) : null}
+            </SectionCard>
+            <SectionCard title="Profile photo" description="Set by the plumber in the app">
+              <SignedPhoto url={plumber.photoUrl} alt={`${plumber.name} profile photo`} className="aspect-square w-40" />
             </SectionCard>
           </div>
         </TabsContent>
