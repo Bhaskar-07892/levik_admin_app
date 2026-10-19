@@ -33,6 +33,10 @@ Then open http://localhost:3020. You are redirected to the login page.
 
 This account is seeded by the API for local and demo environments only.
 
+## Deployment
+
+The portal deploys to Vercel from GitHub: every push to `main` goes live, and other branches get preview URLs. GitHub Actions runs lint, typecheck and a production build on each push. Set `NEXT_PUBLIC_API_URL` to the hosted API in the Vercel project, and add the portal's URL to the API's `CORS_ORIGINS`. Full steps: [DEPLOYMENT.md](https://github.com/shubhamjoshi99899/levik_backend/blob/main/DEPLOYMENT.md) in the API repo.
+
 ## Scripts
 
 | Command                | Purpose                                                    |
