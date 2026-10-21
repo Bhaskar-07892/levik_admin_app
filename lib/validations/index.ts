@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ImageChange } from "@/components/products/product-image-field";
 import { PRODUCT_CATEGORIES, REWARD_CATEGORIES } from "@/types";
 
 const reason = z.string().trim().min(5, "Please enter at least 5 characters.");
@@ -61,11 +62,15 @@ export const productFormSchema = z.object({
   plumberPoints: z.number({ error: "Enter scan points." }).int().min(0).max(10000),
   isActive: z.boolean(),
   rewardEligible: z.boolean(),
+  /** Image picked in the form (already uploaded); see ProductImageField. */
+  image: z.custom<ImageChange>(),
 });
 export type ProductFormValues = z.infer<typeof productFormSchema>;
-export type ProductInput = Omit<ProductFormValues, "featuresText" | "dimensions"> & {
+export type ProductInput = Omit<ProductFormValues, "featuresText" | "dimensions" | "image"> & {
   dimensions?: string;
   features: string[];
+  /** Upload key of a product-image (or catalogue path); null removes the image on update. */
+  imageUrl?: string | null;
 };
 
 export const rewardSchema = z.object({

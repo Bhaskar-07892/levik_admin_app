@@ -2125,14 +2125,17 @@ export interface components {
         CreateProductRequestDto: {
             /** @enum {string} */
             category: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
+            /**
+             * Format: uri
+             * @description Catalogue path, URL or the key of a product-image upload (POST /uploads). null (on update) removes the image.
+             */
+            imageUrl?: string | null;
             name: string;
             modelCode: string;
             description: string;
             /** @description Only as published in the Levik catalogue. */
             dimensions?: string;
             features?: string[];
-            /** Format: uri */
-            imageUrl?: string;
             sku: string;
             barcode: string;
             /** @description Demo/list MRP in ₹. */
@@ -2145,14 +2148,17 @@ export interface components {
         UpdateProductRequestDto: {
             /** @enum {string} */
             category?: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
+            /**
+             * Format: uri
+             * @description Catalogue path, URL or the key of a product-image upload (POST /uploads). null (on update) removes the image.
+             */
+            imageUrl?: string | null;
             name?: string;
             modelCode?: string;
             description?: string;
             /** @description Only as published in the Levik catalogue. */
             dimensions?: string;
             features?: string[];
-            /** Format: uri */
-            imageUrl?: string;
             sku?: string;
             barcode?: string;
             /** @description Demo/list MRP in ₹. */

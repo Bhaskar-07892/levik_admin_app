@@ -69,6 +69,18 @@ async function fetchFile(path: string, query: Record<string, string | number | u
   return response;
 }
 
+export type UploadPurpose = "product-image";
+
+/** Multipart upload to POST /uploads. Returns the upload key (image ID) and a signed link to show it. */
+export async function uploadFile(file: File, purpose: UploadPurpose): Promise<{ key: string; url: string }> {
+  const form = new FormData();
+  form.append("purpose", purpose);
+  form.append("file", file, file.name);
+  const response = await authFetch(new Request(`${API_URL}/api/v1/uploads`, { method: "POST", body: form }));
+  if (!response.ok) throw await ApiError.fromResponse(response);
+  return (await response.json()) as { key: string; url: string };
+}
+
 /** Fetches an authenticated file (upload, PDF) and returns a blob: URL. Revoke it with URL.revokeObjectURL when done. */
 export async function fetchObjectUrl(path: string): Promise<{ url: string; type: string }> {
   const blob = await (await fetchFile(path)).blob();

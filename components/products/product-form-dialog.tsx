@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Field } from "@/components/forms/field";
+import { ProductImageField } from "@/components/products/product-image-field";
 import { SimpleSelect, toOptions } from "@/components/forms/simple-select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,6 +30,7 @@ const EMPTY: ProductFormValues = {
   plumberPoints: 0,
   isActive: true,
   rewardEligible: true,
+  image: { kind: "unchanged" },
 };
 
 const toValues = (p?: ProductDto): ProductFormValues =>
@@ -46,6 +48,7 @@ const toValues = (p?: ProductDto): ProductFormValues =>
         plumberPoints: p.plumberPoints,
         isActive: p.isActive,
         rewardEligible: p.rewardEligible,
+        image: { kind: "unchanged" },
       }
     : EMPTY;
 
@@ -67,7 +70,7 @@ export function ProductFormDialog({
     if (open) form.reset(toValues(product));
   }, [open, product, form]);
 
-  const submit = form.handleSubmit(async ({ featuresText, ...values }) => {
+  const submit = form.handleSubmit(async ({ featuresText, image, ...values }) => {
     const input: ProductInput = {
       ...values,
       dimensions: values.dimensions?.trim() || undefined,
@@ -75,6 +78,8 @@ export function ProductFormDialog({
         .split(",")
         .map((f) => f.trim())
         .filter(Boolean),
+      // Only send the image when it changed; on update, null clears it.
+      ...(image.kind === "uploaded" ? { imageUrl: image.key } : image.kind === "removed" && product ? { imageUrl: null } : {}),
     };
     if (product) {
       const result = await runAction(
@@ -102,6 +107,11 @@ export function ProductFormDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="grid max-h-[62vh] gap-4 overflow-y-auto pr-1 sm:grid-cols-2">
+            <Controller
+              control={form.control}
+              name="image"
+              render={({ field }) => <ProductImageField current={product?.imageUrl} value={field.value} onChange={field.onChange} />}
+            />
             <Field label="Product name" htmlFor="pf-name" error={errors.name?.message}>
               <Input id="pf-name" aria-invalid={Boolean(errors.name)} {...form.register("name")} />
             </Field>
