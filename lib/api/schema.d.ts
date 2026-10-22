@@ -1316,6 +1316,253 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Plumber scans that name this store as the seller. decision=Pending lists those waiting for you. */
+        get: operations["AppSalesController_list_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/sales/{scanId}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirms the sale: stock −1, retail incentive, optional bill, and the plumber is credited when checks pass. */
+        post: operations["AppSalesController_confirm_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/sales/{scanId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** "I did not sell this": nothing moves and Levik reviews the scan. */
+        post: operations["AppSalesController_decline_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inventory/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stock history: every order delivery, sale, bill and manual count, newest first. */
+        get: operations["AdminInventoryController_movements_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminInventoryController_list_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inventory/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminInventoryController_summary_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inventory/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["AdminInventoryController_update_v1"];
+        trace?: never;
+    };
+    "/api/v1/app/inventory/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AppInventoryController_movements_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AppInventoryController_mine_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/inventory/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reports the current stock of one product at the retailer's shop (create or overwrite). */
+        put: operations["AppInventoryController_report_v1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bills retailers issued to their buyers. */
+        get: operations["AdminBillsController_list_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bills/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminBillsController_get_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AppBillsController_mine_v1"];
+        put?: never;
+        /** Bill for a walk-in sale; takes the items out of stock. */
+        post: operations["AppBillsController_create_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/bills/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AppBillsController_get_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/bills/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["BillDocumentController_open_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/rewards": {
         parameters: {
             query?: never;
@@ -1510,14 +1757,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/inventory": {
+    "/api/v1/admin/orders": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AdminInventoryController_list_v1"];
+        /** Orders from every retailer, newest first. */
+        get: operations["AdminOrdersController_list_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1526,14 +1774,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/inventory/summary": {
+    "/api/v1/admin/orders/status-counts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AdminInventoryController_summary_v1"];
+        get: operations["AdminOrdersController_statusCounts_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1542,7 +1790,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/inventory/{id}": {
+    "/api/v1/admin/orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminOrdersController_get_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminOrdersController_timeline_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -1551,21 +1831,39 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Confirm, dispatch, deliver (adds stock and issues the purchase invoice) or cancel (reason required). */
+        post: operations["AdminOrdersController_transition_v1"];
         delete?: never;
         options?: never;
         head?: never;
-        patch: operations["AdminInventoryController_update_v1"];
+        patch?: never;
         trace?: never;
     };
-    "/api/v1/app/inventory": {
+    "/api/v1/app/orders": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["AppInventoryController_mine_v1"];
+        get: operations["AppOrdersController_mine_v1"];
+        put?: never;
+        /** Places a stock order with Levik at catalogue prices. */
+        post: operations["AppOrdersController_place_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AppOrdersController_get_v1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1574,7 +1872,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/app/inventory/{productId}": {
+    "/api/v1/app/orders/{id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AppOrdersController_timeline_v1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/orders/{id}/cancel": {
         parameters: {
             query?: never;
             header?: never;
@@ -1582,8 +1896,24 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Reports the current stock of one product at the retailer's shop (create or overwrite). */
-        put: operations["AppInventoryController_report_v1"];
+        put?: never;
+        /** Withdraws an order Levik has not confirmed yet. */
+        post: operations["AppOrdersController_cancel_v1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/purchase-invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PurchaseInvoiceDocumentController_open_v1"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1925,7 +2255,7 @@ export interface components {
     schemas: {
         AuditLogResponseDto: {
             /** @enum {string} */
-            entityType: "Product" | "Plumber" | "Retailer" | "Scan" | "Invoice" | "Points" | "Reward" | "Redemption" | "Scheme" | "Inventory" | "Support" | "Settings" | "Session" | "Label";
+            entityType: "Product" | "Plumber" | "Retailer" | "Scan" | "Invoice" | "Points" | "Reward" | "Redemption" | "Scheme" | "Inventory" | "Support" | "Settings" | "Session" | "Label" | "Order" | "Bill";
             id: string;
             /** @description ISO timestamp */
             at: string;
@@ -1941,7 +2271,7 @@ export interface components {
             pageSize: number;
         };
         AuditFilterOptionsResponseDto: {
-            entityTypes: ("Product" | "Plumber" | "Retailer" | "Scan" | "Invoice" | "Points" | "Reward" | "Redemption" | "Scheme" | "Inventory" | "Support" | "Settings" | "Session" | "Label")[];
+            entityTypes: ("Product" | "Plumber" | "Retailer" | "Scan" | "Invoice" | "Points" | "Reward" | "Redemption" | "Scheme" | "Inventory" | "Support" | "Settings" | "Session" | "Label" | "Order" | "Bill")[];
             admins: string[];
         };
         NotificationPreferencesResponseDto: {
@@ -1978,7 +2308,7 @@ export interface components {
         };
         UploadRequestDto: {
             /** @enum {string} */
-            purpose: "scan-photo" | "invoice-document" | "product-image" | "profile-photo" | "shop-photo";
+            purpose: "scan-photo" | "invoice-document" | "product-image" | "profile-photo" | "shop-photo" | "gst-certificate";
             /**
              * Format: binary
              * @description Documents the multipart part for Swagger. Multer hands the file to @UploadedFile(), not the body, but class
@@ -2048,14 +2378,14 @@ export interface components {
         };
         RelatedRefDto: {
             /** @enum {string} */
-            type: "scan" | "invoice" | "redemption" | "scheme";
+            type: "scan" | "invoice" | "redemption" | "scheme" | "order" | "bill";
             id: string;
         };
         PointsTransactionResponseDto: {
             /** @enum {string} */
             userRole: "plumber" | "retailer";
             /** @enum {string} */
-            source: "Product Scan" | "Invoice Incentive" | "Scheme Bonus" | "Redemption" | "Redemption Reversal" | "Manual Adjustment" | "Opening Balance";
+            source: "Product Scan" | "Invoice Incentive" | "Scheme Bonus" | "Redemption" | "Redemption Reversal" | "Manual Adjustment" | "Opening Balance" | "Retail Sale";
             id: string;
             userId: string;
             userName: string;
@@ -2411,6 +2741,12 @@ export interface components {
             /** @description Signed links to the owner's profile photo and the shop front photo, relative to the API origin. */
             photoUrl?: string;
             shopPhotoUrl?: string;
+            /** @description Signed link to the GST registration certificate uploaded at onboarding. */
+            gstCertificateUrl?: string;
+            pincode?: string;
+            pan?: string;
+            latitude?: number;
+            longitude?: number;
             lastLoginAt?: string;
         };
         RetailerPageResponseDto: {
@@ -2443,6 +2779,12 @@ export interface components {
             /** @description Signed links to the owner's profile photo and the shop front photo, relative to the API origin. */
             photoUrl?: string;
             shopPhotoUrl?: string;
+            /** @description Signed link to the GST registration certificate uploaded at onboarding. */
+            gstCertificateUrl?: string;
+            pincode?: string;
+            pan?: string;
+            latitude?: number;
+            longitude?: number;
             lastLoginAt?: string;
         };
         UpdateRetailerRequestDto: {
@@ -2457,6 +2799,8 @@ export interface components {
             gstin?: string | null;
             distributor?: string;
             monthlyTarget?: number;
+            pincode?: string | null;
+            pan?: string | null;
         };
         RetailerResponseDto: {
             /** @enum {string} */
@@ -2479,6 +2823,12 @@ export interface components {
             /** @description Signed links to the owner's profile photo and the shop front photo, relative to the API origin. */
             photoUrl?: string;
             shopPhotoUrl?: string;
+            /** @description Signed link to the GST registration certificate uploaded at onboarding. */
+            gstCertificateUrl?: string;
+            pincode?: string;
+            pan?: string;
+            latitude?: number;
+            longitude?: number;
             lastLoginAt?: string;
         };
         ReviewRetailerRequestDto: {
@@ -2501,6 +2851,15 @@ export interface components {
             state: string;
             gstin?: string;
             distributor?: string;
+            pincode: string;
+            /** Format: email */
+            email?: string;
+            pan?: string;
+            /** @description Upload keys from POST /uploads made while signed in as a guest (purposes shop-photo, gst-certificate). */
+            shopPhotoKey?: string;
+            gstCertificateKey?: string;
+            latitude?: number;
+            longitude?: number;
         };
         UpdateMyRetailerProfileRequestDto: {
             ownerName?: string;
@@ -2511,6 +2870,12 @@ export interface components {
             photoKey?: string | null;
             /** @description Upload key from POST /uploads (purpose shop-photo); null removes the photo. */
             shopPhotoKey?: string | null;
+            pincode?: string | null;
+            pan?: string | null;
+            /** @description Upload key (purpose gst-certificate); null removes it. */
+            gstCertificateKey?: string | null;
+            latitude?: number;
+            longitude?: number;
         };
         StoreResponseDto: {
             id: string;
@@ -2822,6 +3187,11 @@ export interface components {
         ScanResponseDto: {
             /** @enum {string} */
             status: "Pending" | "Approved" | "Rejected" | "Flagged";
+            /**
+             * @description The selected retailer's answer to this sale; absent while waiting.
+             * @enum {string}
+             */
+            retailerDecision?: "Confirmed" | "Declined";
             id: string;
             plumber: components["schemas"]["ScanPlumberDto"];
             product: components["schemas"]["ScanProductDto"];
@@ -2843,6 +3213,10 @@ export interface components {
             flagReason?: string;
             reviewedBy?: string;
             reviewedAt?: string;
+            retailerDecidedAt?: string;
+            retailerNote?: string;
+            /** @description Incentive credited to the retailer for confirming. */
+            retailerPoints?: number;
         };
         ScanPageResponseDto: {
             items: components["schemas"]["ScanResponseDto"][];
@@ -2889,6 +3263,8 @@ export interface components {
              * @enum {string}
              */
             status: "Pending" | "Approved" | "Rejected";
+            /** @enum {string} */
+            retailerDecision?: "Confirmed" | "Declined";
             id: string;
             productId: string;
             productName: string;
@@ -2900,12 +3276,169 @@ export interface components {
             siteLocation: string;
             points: number;
             rejectionReason?: string;
+            /** @description True while the chosen retailer has not confirmed the sale yet. */
+            awaitingRetailer: boolean;
         };
         AppScanPageResponseDto: {
             items: components["schemas"]["AppScanResponseDto"][];
             total: number;
             page: number;
             pageSize: number;
+        };
+        RetailerSaleResponseDto: {
+            /**
+             * @description Pending until the retailer confirms or declines.
+             * @enum {string}
+             */
+            decision: "Pending" | "Confirmed" | "Declined";
+            scanId: string;
+            plumberName: string;
+            plumberMobile: string;
+            productId: string;
+            productName: string;
+            modelCode: string;
+            imageUrl?: string;
+            serial: string;
+            scannedAt: string;
+            siteLocation: string;
+            decidedAt?: string;
+            /** @description Points the retailer earns by confirming (or earned). */
+            incentivePoints: number;
+            /** @description Catalogue price, the default price on the buyer's bill. */
+            listPrice: number;
+            billId?: string;
+            billNumber?: string;
+            /** @description Signed link to the bill PDF. */
+            billPdfUrl?: string;
+        };
+        RetailerSalePageResponseDto: {
+            items: components["schemas"]["RetailerSaleResponseDto"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        SaleBillRequestDto: {
+            /** @description Selling price for this unit; defaults to the catalogue price. */
+            unitPrice?: number;
+            customerName: string;
+            customerMobile?: string;
+        };
+        ConfirmSaleRequestDto: {
+            /** @description Also issue a bill to the buyer (e.g. the plumber or their customer). */
+            bill?: components["schemas"]["SaleBillRequestDto"];
+        };
+        ConfirmSaleResponseDto: {
+            retailerPoints: number;
+            billId?: string;
+            /** @description Signed link to the bill PDF, when a bill was created. */
+            billPdfUrl?: string;
+            /** @description The plumber's scan was approved and credited straight away. */
+            autoApproved: boolean;
+            /** @description Why it still waits for Levik when not auto-approved (e.g. plumber KYC pending). */
+            pendingReasons: string[];
+        };
+        StockMovementResponseDto: {
+            /** @enum {string} */
+            reason: "Opening stock" | "Order delivered" | "Plumber sale" | "Customer bill" | "Manual adjustment";
+            id: string;
+            retailerId: string;
+            retailerName: string;
+            productId: string;
+            productName: string;
+            modelCode: string;
+            /** @description Units added (+) or removed (−). */
+            delta: number;
+            balanceAfter: number;
+            /** @description order / scan / bill, with its id. */
+            relatedType?: string;
+            relatedId?: string;
+            note?: string;
+            createdAt: string;
+            createdBy: string;
+        };
+        StockMovementPageResponseDto: {
+            items: components["schemas"]["StockMovementResponseDto"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        InventoryItemResponseDto: {
+            /** @enum {string} */
+            category: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
+            /** @enum {string} */
+            stockStatus: "In Stock" | "Low Stock" | "Out of Stock";
+            id: string;
+            retailerId: string;
+            retailerName: string;
+            productId: string;
+            productName: string;
+            modelCode: string;
+            quantity: number;
+            updatedAt: string;
+            updatedBy: string;
+        };
+        InventoryPageResponseDto: {
+            items: components["schemas"]["InventoryItemResponseDto"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        InventorySummaryResponseDto: {
+            lines: number;
+            retailersReporting: number;
+            lowStock: number;
+            outOfStock: number;
+            /** @description Low-stock threshold from settings. */
+            threshold: number;
+        };
+        UpdateInventoryRequestDto: {
+            quantity: number;
+            note?: string;
+        };
+        ReportStockRequestDto: {
+            quantity: number;
+        };
+        BillLineResponseDto: {
+            productId: string;
+            productName: string;
+            modelCode: string;
+            quantity: number;
+            unitPrice: number;
+            value: number;
+        };
+        BillResponseDto: {
+            id: string;
+            retailerId: string;
+            retailerName: string;
+            /** @description Per-store number, e.g. B-0007. */
+            billNumber: string;
+            customerName: string;
+            customerMobile?: string;
+            /** @description The plumber sale this bill was raised for. */
+            scanId?: string;
+            totalValue: number;
+            createdAt: string;
+            createdBy: string;
+            /** @description Signed link to the bill PDF, relative to the API origin. */
+            pdfUrl: string;
+            lines: components["schemas"]["BillLineResponseDto"][];
+        };
+        BillPageResponseDto: {
+            items: components["schemas"]["BillResponseDto"][];
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        BillLineRequestDto: {
+            productId: string;
+            quantity: number;
+            /** @description Selling price per unit; defaults to the catalogue price (MRP). */
+            unitPrice?: number;
+        };
+        CreateBillRequestDto: {
+            lines: components["schemas"]["BillLineRequestDto"][];
+            customerName: string;
+            customerMobile?: string;
         };
         RewardResponseDto: {
             /** @enum {string} */
@@ -3061,41 +3594,60 @@ export interface components {
             page: number;
             pageSize: number;
         };
-        InventoryItemResponseDto: {
-            /** @enum {string} */
-            category: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
-            /** @enum {string} */
-            stockStatus: "In Stock" | "Low Stock" | "Out of Stock";
-            id: string;
-            retailerId: string;
-            retailerName: string;
+        OrderLineResponseDto: {
             productId: string;
             productName: string;
             modelCode: string;
+            imageUrl?: string;
             quantity: number;
-            updatedAt: string;
-            updatedBy: string;
+            /** @description Price per unit when ordered. */
+            unitPrice: number;
+            value: number;
         };
-        InventoryPageResponseDto: {
-            items: components["schemas"]["InventoryItemResponseDto"][];
+        OrderResponseDto: {
+            /** @enum {string} */
+            status: "Placed" | "Confirmed" | "Dispatched" | "Delivered" | "Cancelled";
+            /** @description Statuses an admin may move this order to. */
+            nextStatuses: ("Placed" | "Confirmed" | "Dispatched" | "Delivered" | "Cancelled")[];
+            id: string;
+            retailerId: string;
+            retailerName: string;
+            retailerCity: string;
+            note?: string;
+            totalValue: number;
+            /** @description Total units across lines. */
+            itemCount: number;
+            placedAt: string;
+            confirmedAt?: string;
+            dispatchedAt?: string;
+            deliveredAt?: string;
+            cancelledAt?: string;
+            cancelReason?: string;
+            /** @description Set when delivered, e.g. LVK/PI/2026/00042. */
+            purchaseInvoiceNumber?: string;
+            /** @description Signed link to the purchase invoice PDF (delivered orders), relative to the API origin. */
+            purchaseInvoiceUrl?: string;
+            lines: components["schemas"]["OrderLineResponseDto"][];
+        };
+        OrderPageResponseDto: {
+            items: components["schemas"]["OrderResponseDto"][];
             total: number;
             page: number;
             pageSize: number;
         };
-        InventorySummaryResponseDto: {
-            lines: number;
-            retailersReporting: number;
-            lowStock: number;
-            outOfStock: number;
-            /** @description Low-stock threshold from settings. */
-            threshold: number;
+        UpdateOrderStatusRequestDto: {
+            /** @enum {string} */
+            status: "Confirmed" | "Dispatched" | "Delivered" | "Cancelled";
+            /** @description Required when cancelling. */
+            reason?: string;
         };
-        UpdateInventoryRequestDto: {
+        OrderLineRequestDto: {
+            productId: string;
             quantity: number;
+        };
+        PlaceOrderRequestDto: {
+            lines: components["schemas"]["OrderLineRequestDto"][];
             note?: string;
-        };
-        ReportStockRequestDto: {
-            quantity: number;
         };
         ExploreSchemeDto: {
             id: string;
@@ -3386,7 +3938,7 @@ export interface operations {
                 pageSize?: number;
                 /** @description Free-text search */
                 search?: string;
-                entityType?: "Product" | "Plumber" | "Retailer" | "Scan" | "Invoice" | "Points" | "Reward" | "Redemption" | "Scheme" | "Inventory" | "Support" | "Settings" | "Session" | "Label";
+                entityType?: "Product" | "Plumber" | "Retailer" | "Scan" | "Invoice" | "Points" | "Reward" | "Redemption" | "Scheme" | "Inventory" | "Support" | "Settings" | "Session" | "Label" | "Order" | "Bill";
                 admin?: string;
                 from?: string;
                 to?: string;
@@ -3414,7 +3966,7 @@ export interface operations {
                 pageSize?: number;
                 /** @description Free-text search */
                 search?: string;
-                entityType?: "Product" | "Plumber" | "Retailer" | "Scan" | "Invoice" | "Points" | "Reward" | "Redemption" | "Scheme" | "Inventory" | "Support" | "Settings" | "Session" | "Label";
+                entityType?: "Product" | "Plumber" | "Retailer" | "Scan" | "Invoice" | "Points" | "Reward" | "Redemption" | "Scheme" | "Inventory" | "Support" | "Settings" | "Session" | "Label" | "Order" | "Bill";
                 admin?: string;
                 from?: string;
                 to?: string;
@@ -3761,9 +4313,9 @@ export interface operations {
                 /** @description Free-text search */
                 search?: string;
                 role?: "plumber" | "retailer";
-                source?: "Product Scan" | "Invoice Incentive" | "Scheme Bonus" | "Redemption" | "Redemption Reversal" | "Manual Adjustment" | "Opening Balance";
+                source?: "Product Scan" | "Invoice Incentive" | "Scheme Bonus" | "Redemption" | "Redemption Reversal" | "Manual Adjustment" | "Opening Balance" | "Retail Sale";
                 direction?: "credit" | "debit";
-                relatedType?: "scan" | "invoice" | "redemption" | "scheme";
+                relatedType?: "scan" | "invoice" | "redemption" | "scheme" | "order" | "bill";
                 userId?: string;
                 relatedId?: string;
                 from?: string;
@@ -3793,9 +4345,9 @@ export interface operations {
                 /** @description Free-text search */
                 search?: string;
                 role?: "plumber" | "retailer";
-                source?: "Product Scan" | "Invoice Incentive" | "Scheme Bonus" | "Redemption" | "Redemption Reversal" | "Manual Adjustment" | "Opening Balance";
+                source?: "Product Scan" | "Invoice Incentive" | "Scheme Bonus" | "Redemption" | "Redemption Reversal" | "Manual Adjustment" | "Opening Balance" | "Retail Sale";
                 direction?: "credit" | "debit";
-                relatedType?: "scan" | "invoice" | "redemption" | "scheme";
+                relatedType?: "scan" | "invoice" | "redemption" | "scheme" | "order" | "bill";
                 userId?: string;
                 relatedId?: string;
                 from?: string;
@@ -5514,6 +6066,388 @@ export interface operations {
             };
         };
     };
+    AppSalesController_list_v1: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                /** @description Free-text search */
+                search?: string;
+                decision?: "Pending" | "Confirmed" | "Declined";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetailerSalePageResponseDto"];
+                };
+            };
+        };
+    };
+    AppSalesController_confirm_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scanId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmSaleRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmSaleResponseDto"];
+                };
+            };
+        };
+    };
+    AppSalesController_decline_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scanId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequestDto"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminInventoryController_movements_v1: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                /** @description Free-text search */
+                search?: string;
+                retailerId?: string;
+                productId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockMovementPageResponseDto"];
+                };
+            };
+        };
+    };
+    AdminInventoryController_list_v1: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                /** @description Free-text search */
+                search?: string;
+                category?: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
+                stockStatus?: "In Stock" | "Low Stock" | "Out of Stock";
+                retailerId?: string;
+                productId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryPageResponseDto"];
+                };
+            };
+        };
+    };
+    AdminInventoryController_summary_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventorySummaryResponseDto"];
+                };
+            };
+        };
+    };
+    AdminInventoryController_update_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateInventoryRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryItemResponseDto"];
+                };
+            };
+        };
+    };
+    AppInventoryController_movements_v1: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                /** @description Free-text search */
+                search?: string;
+                productId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockMovementPageResponseDto"];
+                };
+            };
+        };
+    };
+    AppInventoryController_mine_v1: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                /** @description Free-text search */
+                search?: string;
+                stockStatus?: "In Stock" | "Low Stock" | "Out of Stock";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryPageResponseDto"];
+                };
+            };
+        };
+    };
+    AppInventoryController_report_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportStockRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryItemResponseDto"];
+                };
+            };
+        };
+    };
+    AdminBillsController_list_v1: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                /** @description Free-text search */
+                search?: string;
+                retailerId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillPageResponseDto"];
+                };
+            };
+        };
+    };
+    AdminBillsController_get_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillResponseDto"];
+                };
+            };
+        };
+    };
+    AppBillsController_mine_v1: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                /** @description Free-text search */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillPageResponseDto"];
+                };
+            };
+        };
+    };
+    AppBillsController_create_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBillRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillResponseDto"];
+                };
+            };
+        };
+    };
+    AppBillsController_get_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillResponseDto"];
+                };
+            };
+        };
+    };
+    BillDocumentController_open_v1: {
+        parameters: {
+            query: {
+                exp: number;
+                sig: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     AdminRewardsController_list_v1: {
         parameters: {
             query?: {
@@ -5863,17 +6797,15 @@ export interface operations {
             };
         };
     };
-    AdminInventoryController_list_v1: {
+    AdminOrdersController_list_v1: {
         parameters: {
             query?: {
                 page?: number;
                 pageSize?: number;
                 /** @description Free-text search */
                 search?: string;
-                category?: "One-Piece Western WC" | "Wall-Hung WC" | "Floor-Mounted EWC" | "Indian Pan" | "Half-Pedestal Basin" | "Pedestal Basin" | "Wall-Hung Basin" | "Countertop Basin" | "Urinal" | "Cistern" | "Kitchen Sink";
-                stockStatus?: "In Stock" | "Low Stock" | "Out of Stock";
+                status?: "Placed" | "Confirmed" | "Dispatched" | "Delivered" | "Cancelled";
                 retailerId?: string;
-                productId?: string;
             };
             header?: never;
             path?: never;
@@ -5886,12 +6818,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InventoryPageResponseDto"];
+                    "application/json": components["schemas"]["OrderPageResponseDto"];
                 };
             };
         };
     };
-    AdminInventoryController_summary_v1: {
+    AdminOrdersController_statusCounts_v1: {
         parameters: {
             query?: never;
             header?: never;
@@ -5905,12 +6837,54 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InventorySummaryResponseDto"];
+                    "application/json": Record<string, never>;
                 };
             };
         };
     };
-    AdminInventoryController_update_v1: {
+    AdminOrdersController_get_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
+            };
+        };
+    };
+    AdminOrdersController_timeline_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusEventResponseDto"][];
+                };
+            };
+        };
+    };
+    AdminOrdersController_transition_v1: {
         parameters: {
             query?: never;
             header?: never;
@@ -5921,7 +6895,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateInventoryRequestDto"];
+                "application/json": components["schemas"]["UpdateOrderStatusRequestDto"];
             };
         };
         responses: {
@@ -5930,19 +6904,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InventoryItemResponseDto"];
+                    "application/json": components["schemas"]["OrderResponseDto"];
                 };
             };
         };
     };
-    AppInventoryController_mine_v1: {
+    AppOrdersController_mine_v1: {
         parameters: {
             query?: {
                 page?: number;
                 pageSize?: number;
                 /** @description Free-text search */
                 search?: string;
-                stockStatus?: "In Stock" | "Low Stock" | "Out of Stock";
+                status?: "Placed" | "Confirmed" | "Dispatched" | "Delivered" | "Cancelled";
             };
             header?: never;
             path?: never;
@@ -5955,23 +6929,88 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InventoryPageResponseDto"];
+                    "application/json": components["schemas"]["OrderPageResponseDto"];
                 };
             };
         };
     };
-    AppInventoryController_report_v1: {
+    AppOrdersController_place_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceOrderRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
+            };
+        };
+    };
+    AppOrdersController_get_v1: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                productId: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponseDto"];
+                };
+            };
+        };
+    };
+    AppOrdersController_timeline_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusEventResponseDto"][];
+                };
+            };
+        };
+    };
+    AppOrdersController_cancel_v1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReportStockRequestDto"];
+                "application/json": components["schemas"]["ReasonRequestDto"];
             };
         };
         responses: {
@@ -5980,8 +7019,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InventoryItemResponseDto"];
+                    "application/json": components["schemas"]["OrderResponseDto"];
                 };
+            };
+        };
+    };
+    PurchaseInvoiceDocumentController_open_v1: {
+        parameters: {
+            query: {
+                exp: number;
+                sig: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

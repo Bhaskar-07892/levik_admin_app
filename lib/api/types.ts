@@ -45,3 +45,6 @@ import type { paths } from "./schema";
 
 /** Query-parameter type of a GET endpoint, e.g. `QueryOf<"/api/v1/admin/scans">`. */
 export type QueryOf<P extends keyof paths> = paths[P] extends { get: { parameters: { query?: infer Q } } } ? NonNullable<Q> : never;
+export type OrderDto = S["OrderResponseDto"];
+export type BillDto = S["BillResponseDto"];
+export type StockMovementDto = S["StockMovementResponseDto"];

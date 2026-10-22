@@ -22,6 +22,10 @@ import type { RetailerDetail as Retailer } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatINR, formatNumber, formatPoints } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
 import { RetailerEditDialog } from "./retailer-edit-dialog";
+import { RelatedBills } from "@/components/bills/bills-table";
+import { StockMovementsTable } from "@/components/inventory/stock-movements-table";
+import { RelatedOrders } from "@/components/orders/orders-table";
+import { API_URL } from "@/lib/api/auth";
 
 export function RetailerDetail({ id }: { id: string }) {
   const query = $api.useQuery("get", "/api/v1/admin/retailers/{id}", { params: { path: { id } } });
@@ -133,6 +137,8 @@ function RetailerProfile({ retailer }: { retailer: Retailer }) {
       <Tabs defaultValue="overview" className="mt-6">
         <TabsList className="overflow-x-auto">
           <TabsTrigger value="overview">Shop details</TabsTrigger>
+          <TabsTrigger value="orders">Orders</TabsTrigger>
+          <TabsTrigger value="bills">Bills</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="inventory">Inventory ({inventoryPage?.total ?? 0})</TabsTrigger>
           <TabsTrigger value="schemes">Schemes ({schemes.length})</TabsTrigger>
@@ -147,7 +153,29 @@ function RetailerProfile({ retailer }: { retailer: Retailer }) {
                 { label: "Mobile", value: retailer.mobile },
                 { label: "Email", value: retailer.email ?? "—" },
                 { label: "Address", value: retailer.address },
-                { label: "City / State", value: `${retailer.city}, ${retailer.state}` },
+                { label: "City / State / Pincode", value: [retailer.city, retailer.state, retailer.pincode].filter(Boolean).join(", ") },
+                { label: "PAN", value: <span className="font-mono">{retailer.pan ?? "—"}</span> },
+                {
+                  label: "GST certificate",
+                  value: retailer.gstCertificateUrl ? (
+                    <a href={`${API_URL}${retailer.gstCertificateUrl}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                      Open document
+                    </a>
+                  ) : (
+                    "Not uploaded"
+                  ),
+                },
+                {
+                  label: "Shop location",
+                  value:
+                    retailer.latitude != null && retailer.longitude != null ? (
+                      <a href={`https://www.google.com/maps?q=${retailer.latitude},${retailer.longitude}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                        View on map
+                      </a>
+                    ) : (
+                      "Not shared"
+                    ),
+                },
                 { label: "GSTIN", value: <span className="font-mono">{retailer.gstin ?? "Not GST registered"}</span> },
                 { label: "Distributor", value: retailer.distributor },
                 { label: "Monthly target", value: formatINR(retailer.monthlyTarget) },
@@ -168,13 +196,27 @@ function RetailerProfile({ retailer }: { retailer: Retailer }) {
             </div>
           </SectionCard>
         </TabsContent>
+        <TabsContent value="orders" className="mt-4">
+          <div className="rounded-xl border border-border bg-card">
+            <RelatedOrders retailerId={id} />
+          </div>
+        </TabsContent>
+        <TabsContent value="bills" className="mt-4">
+          <div className="rounded-xl border border-border bg-card">
+            <RelatedBills retailerId={id} />
+          </div>
+        </TabsContent>
         <TabsContent value="invoices" className="mt-4">
           <div className="rounded-xl border border-border bg-card">
             <RelatedInvoices retailerId={id} />
           </div>
         </TabsContent>
         <TabsContent value="inventory" className="mt-4">
-          <SectionCard title="Retailer-reported stock" description="Reported from the retailer app – not live warehouse stock" bodyClassName="p-0">
+          <SectionCard
+            title="Current stock"
+            description="Delivered orders add stock; confirmed plumber sales and bills take it out. The retailer can also correct a count."
+            bodyClassName="p-0"
+          >
             {inventory.length === 0 ? (
               <EmptyState title="No stock reported" description="This retailer has not reported any inventory yet." />
             ) : (
@@ -193,6 +235,9 @@ function RetailerProfile({ retailer }: { retailer: Retailer }) {
                 ))}
               </ul>
             )}
+          </SectionCard>
+          <SectionCard className="mt-6" title="Stock history" description="Every change, with the balance after it" bodyClassName="p-0">
+            <StockMovementsTable retailerId={id} />
           </SectionCard>
         </TabsContent>
         <TabsContent value="schemes" className="mt-4">

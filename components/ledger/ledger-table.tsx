@@ -10,8 +10,9 @@ import { formatDateTime, formatNumber } from "@/lib/utils/format";
 
 export function relatedHref(related: LedgerEntry["related"]): string | undefined {
   if (!related) return undefined;
-  const base = { scan: "/scans", invoice: "/invoices", redemption: "/redemptions", scheme: "/schemes" }[related.type];
-  return `${base}/${related.id}`;
+  // Bills have no page of their own; they are listed on the retailer's page.
+  const base = { scan: "/scans", invoice: "/invoices", redemption: "/redemptions", scheme: "/schemes", order: "/orders", bill: undefined }[related.type];
+  return base ? `${base}/${related.id}` : undefined;
 }
 
 export function userHref(entry: Pick<LedgerEntry, "userId" | "userRole">): string {

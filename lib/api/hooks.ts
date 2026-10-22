@@ -12,7 +12,8 @@ type CountsPath =
   | "/api/v1/admin/invoices/status-counts"
   | "/api/v1/admin/redemptions/status-counts"
   | "/api/v1/admin/schemes/status-counts"
-  | "/api/v1/admin/support-tickets/status-counts";
+  | "/api/v1/admin/support-tickets/status-counts"
+  | "/api/v1/admin/orders/status-counts";
 
 /** Per-status totals for the status tabs (independent of the current search/filters). */
 export function useStatusCounts(path: CountsPath) {

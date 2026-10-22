@@ -11,6 +11,8 @@ const TONE_BY_STATUS: Record<string, Tone> = {
   Resolved: "success",
   Posted: "success",
   Pending: "warning",
+  Placed: "warning",
+  Confirmed: "info",
   Submitted: "warning",
   Requested: "warning",
   "Low Stock": "warning",

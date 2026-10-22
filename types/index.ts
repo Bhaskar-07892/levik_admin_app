@@ -42,3 +42,4 @@ export interface Database {
   /** Per-prefix sequence counters for new record identifiers. */
   counters: Record<string, number>;
 }
+export * from "./order";

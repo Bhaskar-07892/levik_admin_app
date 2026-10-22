@@ -33,6 +33,13 @@ Then open http://localhost:3020. You are redirected to the login page.
 
 This account is seeded by the API for local and demo environments only.
 
+## Orders and stock
+
+- **Orders** lists every retailer's stock orders. Confirm, dispatch and mark delivered from an order's page. Delivery adds the stock to the retailer's inventory and issues the purchase invoice (PDF button).
+- **Inventory** shows current stock and the full stock history across retailers.
+- A **retailer's page** has their orders, the bills they issued to buyers, and their stock history.
+- **Scan reviews** show whether the selected retailer confirmed or declined the sale.
+
 ## Deployment
 
 The portal deploys to Vercel from GitHub: every push to `main` goes live, and other branches get preview URLs. GitHub Actions runs lint, typecheck and a production build on each push. Set `NEXT_PUBLIC_API_URL` to the hosted API in the Vercel project, and add the portal's URL to the API's `CORS_ORIGINS`. Full steps: [DEPLOYMENT.md](https://github.com/shubhamjoshi99899/levik_backend/blob/main/DEPLOYMENT.md) in the API repo.

@@ -1,22 +1,4 @@
-import {
-  Boxes,
-
-  FileText,
-  Gift,
-  LayoutDashboard,
-  LifeBuoy,
-  type LucideIcon,
-  Megaphone,
-  Package,
-  PieChart,
-  ScanLine,
-  ScrollText,
-  Settings,
-  Store,
-  Truck,
-  Wallet,
-  Wrench,
-} from "lucide-react";
+import { Boxes, FileText, Gift, LayoutDashboard, LifeBuoy, Megaphone, Package, PieChart, ScanLine, ScrollText, Settings, ShoppingCart, Store, Truck, Wallet, Wrench, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   title: string;
@@ -42,6 +24,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Products & Sales",
     items: [
       { title: "Product Catalogue", href: "/products", icon: Package },
+      { title: "Orders", href: "/orders", icon: ShoppingCart },
       { title: "Inventory", href: "/inventory", icon: Boxes },
       { title: "Product Scans", href: "/scans", icon: ScanLine },
       { title: "Invoice Management", href: "/invoices", icon: FileText },

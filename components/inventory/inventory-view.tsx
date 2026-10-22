@@ -21,6 +21,8 @@ import { usePagedList } from "@/lib/hooks/use-paged-list";
 import { formatDateTime } from "@/lib/utils/format";
 import { runAction } from "@/lib/utils/run-action";
 import { PRODUCT_CATEGORIES } from "@/types";
+import { StockMovementsTable } from "./stock-movements-table";
+import { SectionCard } from "@/components/shared/section-card";
 
 function UpdateStockForm({ item, onClose }: { item: InventoryRow; onClose: () => void }) {
   const [qty, setQty] = useState(String(item.quantity));
@@ -45,9 +47,9 @@ function UpdateStockForm({ item, onClose }: { item: InventoryRow; onClose: () =>
       }}
     >
       <DialogHeader>
-        <DialogTitle>Update reported stock</DialogTitle>
+        <DialogTitle>Correct stock count</DialogTitle>
         <DialogDescription>
-          {item.productName} at {item.retailerName}. Retailer-reported quantity, not warehouse stock.
+          {item.productName} at {item.retailerName}. The difference is recorded in the stock history as a manual adjustment.
         </DialogDescription>
       </DialogHeader>
       <Field label="Reported quantity (units)" htmlFor="inv-qty" error={error ?? undefined}>
@@ -125,9 +127,9 @@ export function InventoryView() {
 
   return (
     <div>
-      <PageHeader title="Inventory" description="Stock levels reported by retailers for Levik products, with low-stock indicators." />
+      <PageHeader title="Inventory" description="Retailer stock of Levik products: delivered orders add stock, confirmed plumber sales and bills take it out, and every change is in the stock history." />
       <DemoNotice>
-        Quantities are reported by retailers in the app, not live warehouse stock. Low-stock threshold: {summary?.threshold ?? "—"} units (change it in Settings).
+        Retailers can still correct a count by hand; each correction is logged. Low-stock threshold: {summary?.threshold ?? "—"} units (change it in Settings).
       </DemoNotice>
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <KpiCard label="Stock lines" value={String(summary?.lines ?? "—")} hint={`${summary?.retailersReporting ?? 0} retailers reporting`} icon={Boxes} />
@@ -157,6 +159,9 @@ export function InventoryView() {
       <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="sm:max-w-md">{editing ? <UpdateStockForm key={editing.id} item={editing} onClose={() => setEditing(null)} /> : null}</DialogContent>
       </Dialog>
+      <SectionCard className="mt-6" title="Stock history" description="Every stock change across all retailers, newest first" bodyClassName="p-0">
+        <StockMovementsTable showRetailer />
+      </SectionCard>
     </div>
   );
 }
